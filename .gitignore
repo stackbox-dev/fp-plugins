@@ -1,0 +1,26 @@
+# build output
+dist
+
+# dependencies
+node_modules
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# log
+npm-debug.log
+
+# macos
+.DS_Store
+
+# env files
+env
+
+data
+
+config/*
+!config/dev.yml
+!config/test.yml
+bin
+
+coverage

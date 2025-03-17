@@ -1,0 +1,1 @@
+- Add tag for a minor/major release by `npm version minor` and `npm version major` after commit

@@ -30,10 +30,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   }
 
   const handlerMap = getHandlerMap(options);
-  const client = new PubSub({
-    projectId: options.credentials?.projectId,
-    auth: options.credentials?.GoogleAuth,
-  });
+  const client = new PubSub();
   const topic = client.topic(options.topic, {
     batching: {
       maxMilliseconds: 10,

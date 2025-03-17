@@ -7,14 +7,15 @@ on:
 
 
 jobs:
-  sonarscan:
+  build:
+    name: Build and analyze
     runs-on: ubuntu-latest
-    permissions: read-all
+    
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - uses: sonarsource/sonarqube-scan-action@main
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - uses: SonarSource/sonarqube-scan-action@v4
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

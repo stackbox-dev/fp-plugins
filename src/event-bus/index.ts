@@ -73,7 +73,4 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   }
 };
 
-export default fp(plugin, {
-  name: "fp-event-bus",
-  dependencies: ["fp-config"],
-});
+export default fp(plugin, { name: "fp-eventbus" });

@@ -155,7 +155,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   );
 };
 
-export = fp(plugin, { name: "fp-event-bus-gcp-pubsub" });
+export = fp(plugin, { name: "fp-eventbus-gcp-pubsub" });
 
 function convert(msg: PubsubMessage): EventMessage {
   const buf = Buffer.from(msg.message.data, "base64");

@@ -162,10 +162,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   );
 };
 
-export = fp(plugin, {
-  name: "fp-event-bus-rabbitmq",
-  dependencies: ["fp-config"],
-});
+export = fp(plugin, { name: "fp-eventbus-rabbitmq" });
 
 function convert(msg: IncomingRabbitMqMessage): EventMessage {
   const body: MessageBody = JSON.parse(msg.body);

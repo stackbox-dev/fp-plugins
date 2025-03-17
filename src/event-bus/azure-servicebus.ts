@@ -185,7 +185,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   );
 };
 
-export = fp(plugin, { name: "fp-event-bus-azure-servicebus" });
+export = fp(plugin, { name: "fp-eventbus-azure-servicebus" });
 
 function convert(msg: IncomingServiceBusMessage): EventMessage {
   const body: MessageBody = JSON.parse(msg.body);

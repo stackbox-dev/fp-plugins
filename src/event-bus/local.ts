@@ -120,4 +120,4 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   );
 };
 
-export = fp(plugin, { name: "fp-event-bus-local" });
+export = fp(plugin, { name: "fp-eventbus-local" });

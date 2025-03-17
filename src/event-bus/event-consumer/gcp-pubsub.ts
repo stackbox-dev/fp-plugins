@@ -4,7 +4,6 @@ import { EventConsumerBuilder } from "./interface";
 
 export const GcpPubSubConsumerBuilder: EventConsumerBuilder = async (
   instance,
-  _credentials,
 ) => {
   const pubsub = new PubSub();
   if (

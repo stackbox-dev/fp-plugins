@@ -1,4 +1,5 @@
 import * as timers from "node:timers/promises";
+import * as AzureIden from "@azure/identity";
 import { RetryMode, ServiceBusClient } from "@azure/service-bus";
 import { EventConsumerBuilder } from "./interface";
 
@@ -13,7 +14,6 @@ async function exponentialDelay(
 
 export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
   instance,
-  credentials: any,
 ) => {
   if (!process.env.EVENT_NAMESPACE) {
     throw new Error("Azure ServiceBus needs EVENT_NAMESPACE");
@@ -26,7 +26,7 @@ export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
   }
   const client = new ServiceBusClient(
     process.env.EVENT_NAMESPACE,
-    credentials,
+    new AzureIden.DefaultAzureCredential({}),
     {
       retryOptions: {
         mode: RetryMode.Fixed,

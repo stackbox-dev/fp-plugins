@@ -7,7 +7,6 @@ import { EventConsumerBuilder } from "./interface";
 
 export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
   instance,
-  _credentials,
 ) => {
   if (!process.env.RABBITMQ_URL) {
     throw new Error("RabbitMq requires RABBITMQ_URL");

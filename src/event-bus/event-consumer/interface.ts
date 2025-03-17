@@ -6,5 +6,4 @@ export interface EventConsumer {
 
 export type EventConsumerBuilder = (
   instance: FastifyInstance,
-  credentials?: any,
 ) => Promise<EventConsumer>;

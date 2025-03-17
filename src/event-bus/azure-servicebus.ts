@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
+import * as AzureIden from "@azure/identity";
 import {
   ServiceBusClient,
   ServiceBusMessage,
@@ -53,7 +54,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 
   const client = new ServiceBusClient(
     options.namespace,
-    options.credentials,
+    new AzureIden.DefaultAzureCredential({}),
     {},
   );
 

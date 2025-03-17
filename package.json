@@ -28,6 +28,7 @@
     "LICENSE"
   ],
   "dependencies": {
+    "@azure/identity": "^4.8.0",
     "@azure/service-bus": "^7.9.5",
     "@google-cloud/pubsub": "^4.10.0",
     "denque": "^2.1.0",

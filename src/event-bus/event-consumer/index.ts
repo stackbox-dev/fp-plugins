@@ -8,15 +8,14 @@ import { EventBusOptions } from "../interfaces";
 export function CreateEventConsumer(
   instance: FastifyInstance,
   type: EventBusOptions["busType"],
-  credentials: any,
 ): Promise<EventConsumer> {
   switch (type) {
     case "gcp-pubsub":
-      return GcpPubSubConsumerBuilder(instance, credentials);
+      return GcpPubSubConsumerBuilder(instance);
     case "azure-servicebus":
-      return AzureServiceBusConsumerBuilder(instance, credentials);
+      return AzureServiceBusConsumerBuilder(instance);
     case "rabbitmq":
-      return RabbitMqServiceBusConsumerBuilder(instance, credentials);
+      return RabbitMqServiceBusConsumerBuilder(instance);
     default:
       return Promise.resolve({
         close: async () => {

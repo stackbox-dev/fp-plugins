@@ -13,7 +13,6 @@ export interface EventBusOptions {
   processError(err: any, ctx: ActionContext): { err: any; status: number };
   disableEventPublishRoute?: boolean;
   actionConcurrency?: number;
-  credentials?: any;
   registry: Registry;
 }
 

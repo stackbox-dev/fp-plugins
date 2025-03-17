@@ -8,6 +8,7 @@ import {
 import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
 import {
   CreateHandlerRunner,
+  ErrorWithStatus,
   getHandlerMap,
   noMatchingHandlers,
 } from "./commons";
@@ -177,10 +178,22 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         return reply;
       }
 
-      await selectAndRunHandlers(req, msg, (event, payload, file) =>
-        publishToPubSub(event, payload, file, msg.processAfterDelayMs, req),
-      );
-      return "OK";
+      try {
+        await selectAndRunHandlers(req, msg, (event, payload, file) =>
+          publishToPubSub(event, payload, file, msg.processAfterDelayMs, req),
+        );
+        reply.send("OK");
+        return reply;
+      } catch (err) {
+        if (err instanceof ErrorWithStatus) {
+          reply.send(err.message);
+          reply.status(err.status);
+        } else {
+          reply.send("ERROR");
+          reply.status(500);
+        }
+        return reply;
+      }
     },
   );
 };

@@ -10,11 +10,7 @@ export interface EventBusOptions {
     handlers: EventHandlers;
   }[];
   validateMsg: (event: string, payload: any, req?: FastifyRequest) => void;
-  logError(
-    err: any,
-    status: string,
-    ctx: ActionContext,
-  ): { err: any; status: string };
+  processError(err: any, ctx: ActionContext): { err: any; status: number };
   disableEventPublishRoute?: boolean;
   actionConcurrency?: number;
   credentials?: any;

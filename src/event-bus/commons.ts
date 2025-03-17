@@ -63,20 +63,26 @@ export function noMatchingHandlers(
   return true;
 }
 
+export class ErrorWithStatus extends Error {
+  status: number;
+  constructor(status: number, message?: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 const CreateActionFactory =
   (options: EventBusOptions, appCtx: AppContext) =>
   (ctx: ActionContext) =>
   async () => {
     const start = Date.now();
-    let status = "200";
+    let status = 200;
     try {
       await ctx.handler.call(appCtx.f, ctx.eventMsg, ctx.req);
     } catch (err) {
-      ({ err, status } = options.logError(err, status, ctx));
+      ({ err, status } = options.processError(err, ctx));
 
       if (ctx.eventMsg.attributes.noRetry === "true") {
-        // log and swallow error
-        status = "500";
         return;
       }
 
@@ -84,12 +90,9 @@ const CreateActionFactory =
         // if no specified file is provided, trigger another message with
         // the specified file
         ctx.publishToPubSub(ctx.eventMsg.event, ctx.eventMsg.data, ctx.file);
-        status = "500";
       } else {
-        ({ err, status } = options.logError(err, status, ctx));
-        status = "500";
-        // throw error to trigger pubsub retry
-        throw new Error(
+        throw new ErrorWithStatus(
+          status,
           `${ctx.file}-${ctx.handler.name} failed with ${err.message}`,
         );
       }

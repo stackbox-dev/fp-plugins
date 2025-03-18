@@ -1,14 +1,14 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { FastifyInstance, FastifyPluginAsync } from "fastify";
-import fp from "fastify-plugin";
 import * as S3 from "@aws-sdk/client-s3";
-import { defaultProvider } from "@aws-sdk/credential-provider-node";
 import * as AzureIden from "@azure/identity";
+import { defaultProvider } from "@aws-sdk/credential-provider-node";
 import { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
 import { Storage } from "@google-cloud/storage";
-import { Lang } from "@stackbox-dev/stdlib";
+import { FastifyInstance, FastifyPluginAsync } from "fastify";
+import fp from "fastify-plugin";
+import { streamToBuffer } from "./utils";
 
 export interface FileStore {
   exists(filepath: string): Promise<boolean>;
@@ -120,7 +120,7 @@ class AzureFileStore implements FileStore {
     if (!resp.readableStreamBody) {
       throw new Error("No readableStreamBody");
     }
-    return Lang.streamToBuffer(resp.readableStreamBody);
+    return streamToBuffer(resp.readableStreamBody);
   }
 
   async copyFromLocalFile(
@@ -174,7 +174,7 @@ class GCPFileStore implements FileStore {
   async getAsBuffer(filepath: string): Promise<Buffer> {
     const gcsfile = this.storage.bucket(this.bucket).file(filepath);
     const strm = gcsfile.createReadStream();
-    return Lang.streamToBuffer(strm);
+    return streamToBuffer(strm);
   }
 
   async copyFromLocalFile(
@@ -242,7 +242,7 @@ class S3FileStore implements FileStore {
     if (!data.Body) {
       throw new Error(`No Body in response for ${filepath}`);
     }
-    return Lang.streamToBuffer(data.Body as NodeJS.ReadableStream);
+    return streamToBuffer(data.Body as NodeJS.ReadableStream);
   }
 
   async copyFromLocalFile(

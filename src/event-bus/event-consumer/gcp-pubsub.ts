@@ -1,7 +1,13 @@
-import { FastifyInstance } from "fastify";
 import { Message, PubSub, Subscription } from "@google-cloud/pubsub";
+import { FastifyInstance } from "fastify";
 import { EventConsumerBuilder } from "./interface";
+import { exponentialDelay } from "./utils";
 
+/**
+ * GCP Pub/Sub supports
+ * 1. flowControl -> this is to support parallel processing
+ * 2. need to support delayed message delivery manually (recursive retry for 425)
+ */
 export const GcpPubSubConsumerBuilder: EventConsumerBuilder = async (
   instance,
 ) => {
@@ -74,48 +80,73 @@ class Runner {
       },
     });
     this.subscription.addListener("message", (msg: Message) => {
-      if (this.ctrl.signal.aborted) {
-        msg.nack();
-        return;
-      }
-      this.instance
-        .inject({
-          method: "POST",
-          url: "/gcp-pubsub/process-message",
-          payload: {
-            message: {
-              attributes: msg.attributes,
-              data: msg.data.toString("base64"),
-              messageId: msg.id,
-              publishTime: msg.publishTime.toISOString(),
-            },
-            subscription: this.subName,
-          },
-          headers: {
-            "content-type": "application/json",
-          },
-        })
-        .then((resp) => {
-          if (resp.statusCode >= 200 && resp.statusCode < 300) {
-            msg.ack();
-          } else {
-            msg.nack();
-          }
-        })
-        .catch((_err) => {
-          msg.nack();
-        });
+      this.processMsg(msg, 0);
     });
     this.subscription.on("error", (err) => {
       this.instance.log.error({ tag: "GCP_PUBSUB_RECEIVER_ERROR", err });
       this.subscription?.removeAllListeners();
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
       this.subscription?.close();
-
       this.instance.log.warn("waiting for 10 seconds before reconnecting...");
       this.timerRef = setTimeout(() => {
         this.init();
       }, 10000); // retrying after 10 seconds
     });
+  }
+
+  async processMsg(msg: Message, attempt: number) {
+    if (this.ctrl.signal.aborted) {
+      msg.nack();
+      return;
+    }
+
+    const MAX_ATTEMPTS = 10;
+    if (attempt > 0 && attempt < MAX_ATTEMPTS) {
+      await exponentialDelay(attempt);
+    } else if (attempt >= MAX_ATTEMPTS) {
+      // recursion exit
+      this.instance.log.error({
+        tag: "GCP_PUBSUB_RECEIVER_MAX_ATTEMPTS",
+        msg: msg.data,
+        att: msg.attributes,
+        attempt,
+      });
+      msg.nack();
+      return;
+    }
+
+    try {
+      const resp = await this.instance.inject({
+        method: "POST",
+        url: "/gcp-pubsub/process-message",
+        payload: {
+          message: {
+            attributes: msg.attributes,
+            data: msg.data.toString("base64"),
+            messageId: msg.id,
+            publishTime: msg.publishTime.toISOString(),
+          },
+          subscription: this.subName,
+        },
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        msg.ack();
+      } else if (resp.statusCode === 429 || resp.statusCode === 409) {
+        // rate-limited or lock-conflict
+        msg.nack();
+      } else if (resp.statusCode === 425) {
+        await this.processMsg(msg, attempt + 1);
+      } else {
+        msg.nack();
+      }
+    } catch (err) {
+      this.instance.log.error({
+        tag: "GCP_PUBSUB_RECEIVER_ERROR",
+        err,
+      });
+      msg.nack();
+    }
   }
 }

@@ -1,5 +1,16 @@
 {
   "tabWidth": 2,
   "useTabs": false,
-  "printWidth": 80
+  "printWidth": 80,
+  "plugins": ["@trivago/prettier-plugin-sort-imports"],
+  "importOrder": [
+    "^node:(.*)$",
+    "<THIRD_PARTY_MODULES>",
+    "^@stackbox-dev/(.*)$",
+    "^[./]"
+  ],
+  "importOrderSeparation": false,
+  "importOrderSortSpecifiers": true,
+  "importOrderGroupNamespaceSpecifiers": true,
+  "importOrderParserPlugins": ["typescript", "classProperties", "decorators"]
 }

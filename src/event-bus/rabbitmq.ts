@@ -1,17 +1,15 @@
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
+import { Queue } from "mnemonist";
 import { Connection, Publisher } from "rabbitmq-client";
-import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
 import {
   CreateHandlerRunner,
   ErrorWithStatus,
   getHandlerMap,
   noMatchingHandlers,
 } from "./commons";
+import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
 import { ensureRabbitMqExchangesAndQueues } from "./rabbitmq-utils";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import Denque = require("denque");
 
 interface IncomingRabbitMqMessage {
   messageId: number;
@@ -49,7 +47,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 
   const publisher = connection.createPublisher({ maxAttempts: 3 });
 
-  const msgQueue = new Denque<MessageWithAttempts>();
+  const msgQueue = new Queue<MessageWithAttempts>();
 
   const flush = createMessageFlusher(f, publisher, msgQueue);
   const ref = setInterval(() => {
@@ -82,7 +80,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         processAfterDelayMs > 0 ? processAfterDelayMs : undefined,
       publishTimestamp: Date.now(),
     };
-    msgQueue.push({
+    msgQueue.enqueue({
       body: messageBody,
       attempts: 0,
     });
@@ -196,22 +194,22 @@ function convert(msg: IncomingRabbitMqMessage): EventMessage {
 function createMessageFlusher(
   f: FastifyInstance,
   publisher: Publisher,
-  msgQueue: Denque<MessageWithAttempts>,
+  msgQueue: Queue<MessageWithAttempts>,
 ) {
   let running = false;
   const CONCURRENCY = 10;
   return async function flush(force = false) {
-    if (msgQueue.length === 0 || (!force && running)) {
+    if (msgQueue.size === 0 || (!force && running)) {
       return;
     }
     running = true;
     let flushed = 0;
-    const total = msgQueue.length;
+    const total = msgQueue.size;
     const start = Date.now();
     try {
       const batch: MessageWithAttempts[] = [];
-      while (msgQueue.length > 0) {
-        const message = msgQueue.shift();
+      while (msgQueue.size > 0) {
+        const message = msgQueue.dequeue();
         if (!message) {
           break;
         }
@@ -246,7 +244,7 @@ function createMessageFlusher(
                   });
                   msg.attempts++;
                   if (msg.attempts < 3) {
-                    msgQueue.push(msg);
+                    msgQueue.enqueue(msg);
                   }
                 }),
             ),

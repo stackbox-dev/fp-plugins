@@ -1,21 +1,19 @@
-import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
-import fp from "fastify-plugin";
 import * as AzureIden from "@azure/identity";
 import {
   ServiceBusClient,
   ServiceBusMessage,
   ServiceBusSender,
 } from "@azure/service-bus";
-import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
+import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
+import fp from "fastify-plugin";
+import { Queue } from "mnemonist";
 import {
   CreateHandlerRunner,
   ErrorWithStatus,
   getHandlerMap,
   noMatchingHandlers,
 } from "./commons";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-import Denque = require("denque");
+import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
 
 interface IncomingServiceBusMessage {
   messageId: number;
@@ -60,7 +58,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 
   const sender = client.createSender(options.topic);
 
-  const msgQueue = new Denque<MessageWithAttempts>();
+  const msgQueue = new Queue<MessageWithAttempts>();
 
   const flush = createMessageFlusher(f, sender, msgQueue);
   const ref = setInterval(() => {
@@ -94,7 +92,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
       publishTimestamp: Date.now(),
     };
     const encoded = JSON.stringify(messageBody);
-    msgQueue.push({
+    msgQueue.enqueue({
       msg: {
         body: Buffer.from(encoded, "utf8"),
         applicationProperties: {
@@ -220,22 +218,22 @@ function convert(msg: IncomingServiceBusMessage): EventMessage {
 function createMessageFlusher(
   f: FastifyInstance,
   sender: ServiceBusSender,
-  msgQueue: Denque<MessageWithAttempts>,
+  msgQueue: Queue<MessageWithAttempts>,
 ) {
   let running = false;
   return async function flush(force = false) {
-    if (msgQueue.length === 0 || (!force && running)) {
+    if (msgQueue.size === 0 || (!force && running)) {
       return;
     }
     running = true;
     const tracker: MessageWithAttempts[] = [];
     let flushed = 0;
-    const total = msgQueue.length;
+    const total = msgQueue.size;
     const start = Date.now();
     try {
       let batch = await sender.createMessageBatch({});
-      while (msgQueue.length > 0) {
-        const message = msgQueue.shift();
+      while (msgQueue.size > 0) {
+        const message = msgQueue.dequeue();
         if (!message) {
           break;
         }
@@ -269,7 +267,7 @@ function createMessageFlusher(
       for (const message of tracker) {
         // don't re-attempt indefinitely
         if (message.attempts < 3) {
-          msgQueue.push({
+          msgQueue.enqueue({
             msg: message.msg,
             attempts: message.attempts + 1,
           });

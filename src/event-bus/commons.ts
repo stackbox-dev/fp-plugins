@@ -1,5 +1,5 @@
-import { FastifyInstance, FastifyRequest } from "fastify";
 import * as prom from "prom-client";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import {
   ActionContext,
   EventHandler,
@@ -80,12 +80,11 @@ const CreateActionFactory =
     try {
       await ctx.handler.call(appCtx.f, ctx.eventMsg, ctx.req);
     } catch (err) {
-      ({ err, status } = options.processError(err, ctx));
-
       if (ctx.eventMsg.attributes.noRetry === "true") {
         return;
       }
 
+      ({ err, status } = options.processError(err, ctx));
       if (!ctx.specifiedFile) {
         // if no specified file is provided, trigger another message with
         // the specified file

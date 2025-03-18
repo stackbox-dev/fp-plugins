@@ -1,17 +1,14 @@
-import * as timers from "node:timers/promises";
 import * as AzureIden from "@azure/identity";
 import { RetryMode, ServiceBusClient } from "@azure/service-bus";
 import { EventConsumerBuilder } from "./interface";
+import { exponentialDelay } from "./utils";
 
-async function exponentialDelay(
-  baseDelayMs: number,
-  maxDelayMs: number,
-  attempt: number,
-): Promise<void> {
-  const delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
-  await timers.setTimeout(delay);
-}
-
+/**
+ * Azure ServiceBus supports
+ * 1. scheduledEnqueueTimeUtc -> this is to support delayed message delivery
+ * 2. peekLock -> this is to support message processing without contention
+ * 3. maxConcurrentCalls -> this is to support parallel processing
+ */
 export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
   instance,
 ) => {
@@ -47,15 +44,6 @@ export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
   );
   const ctrl = new AbortController();
 
-  const baseDelay = Math.max(
-    parseInt(process.env.EVENT_RETRY_BASE_DELAY ?? "0", 10) || 0,
-    5_000,
-  );
-  const maxDelay = Math.max(
-    parseInt(process.env.EVENT_RETRY_MAX_DELAY ?? "0", 10) || 0,
-    60_000,
-  );
-
   const handler = receiver.subscribe(
     {
       async processMessage(msg) {
@@ -69,11 +57,7 @@ export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
             deliveryCount: msg.deliveryCount,
             messageId: msg.messageId,
           });
-          await exponentialDelay(
-            baseDelay,
-            maxDelay,
-            Math.max(msg.deliveryCount - 2, 0),
-          );
+          await exponentialDelay(Math.max(msg.deliveryCount - 2, 0));
         }
         try {
           const payload = {
@@ -91,6 +75,18 @@ export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
           });
           if (resp.statusCode >= 200 && resp.statusCode < 300) {
             await receiver.completeMessage(msg);
+          } else if (resp.statusCode === 429 || resp.statusCode === 409) {
+            // rate-limited or lock-conflict
+            await receiver.abandonMessage(msg);
+          } else if (resp.statusCode === 425) {
+            // delayed message
+            // ideally it shouldn't come here because azure service bus already
+            // supports delayed message receiving
+            instance.log.error({
+              tag: "AZURE_SERVICE_BUS_DELAYED_MESSAGE",
+              payload,
+            });
+            await receiver.abandonMessage(msg);
           } else {
             await receiver.abandonMessage(msg);
           }

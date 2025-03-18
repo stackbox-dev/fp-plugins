@@ -5,6 +5,12 @@ import {
 } from "../rabbitmq-utils";
 import { EventConsumerBuilder } from "./interface";
 
+/**
+ * RabbitMq supports
+ * 1. prefetchCount -> this is to support parallel processing
+ * 2. concurrency -> this is to support parallel processing
+ * 3. ConsumerStatus -> requeue and drop messages appropriately
+ */
 export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
   instance,
 ) => {
@@ -51,6 +57,12 @@ export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
         });
         if (resp.statusCode >= 200 && resp.statusCode < 300) {
           return ConsumerStatus.ACK;
+        } else if (resp.statusCode === 429 || resp.statusCode === 409) {
+          // rate-limited or lock-conflict
+          return ConsumerStatus.REQUEUE;
+        } else if (resp.statusCode === 425) {
+          // delayed message. requeue the message without error
+          return ConsumerStatus.REQUEUE;
         } else {
           return ConsumerStatus.DROP;
         }

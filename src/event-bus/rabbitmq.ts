@@ -97,16 +97,26 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
       publishToExchange(event, payload, null, processAfterDelayMs ?? 0);
     },
   };
-  f.decorate("EventBus", bus);
+  f.decorate("EventBus", {
+    getter() {
+      return bus;
+    },
+  });
 
-  f.decorateRequest("EventBus", bus);
-  f.addHook("onRequest", function (req, _reply, done) {
-    req.EventBus = {
-      publish(event, payload, processAfterDelayMs) {
-        publishToExchange(event, payload, null, processAfterDelayMs ?? 0, req);
-      },
-    };
-    done();
+  f.decorateRequest("EventBus", {
+    getter() {
+      return {
+        publish: (event, payload, processAfterDelayMs) => {
+          publishToExchange(
+            event,
+            payload,
+            null,
+            processAfterDelayMs ?? 0,
+            this,
+          );
+        },
+      };
+    },
   });
 
   const selectAndRunHandlers = CreateHandlerRunner(f, options, handlerMap);
@@ -148,8 +158,9 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         Date.now() < msg.publishTime.getTime() + msg.processAfterDelayMs
       ) {
         // wait for pub-sub to repush. can't process so early
-        reply.send(`ProcessAfterDelayMs=${msg.processAfterDelayMs}`);
-        reply.status(425);
+        reply
+          .status(425)
+          .send({ processAfterDelayMs: msg?.processAfterDelayMs });
         return reply;
       }
 
@@ -161,11 +172,9 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         return reply;
       } catch (err) {
         if (err instanceof ErrorWithStatus) {
-          reply.send(err.message);
-          reply.status(err.status);
+          reply.status(err.status).send(err.message);
         } else {
-          reply.send("ERROR");
-          reply.status(500);
+          reply.status(500).send("ERROR");
         }
         return reply;
       }

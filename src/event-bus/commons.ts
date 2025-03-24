@@ -120,13 +120,13 @@ export function CreateHandlerRunner(
       15000, 18000, 20000, 25000, 30000, 35000, 40000, 45000, 50000, 60000,
       70000, 80000,
     ],
-    registers: [options.registry],
+    registers: options.registry ? [options.registry] : [],
     labelNames: ["event", "file", "status"] as const,
   });
   const counter = new prom.Counter({
     help: "event_handler_latency_total",
     name: "event_handler_latency_total",
-    registers: [options.registry],
+    registers: options.registry ? [options.registry] : [],
     labelNames: ["event", "file", "status"] as const,
   });
 

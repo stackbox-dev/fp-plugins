@@ -46,11 +46,17 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
             "API to push a event manually. Use the appropriate query-param or request-body to send the payload.",
           operationId: "publishToEventBus",
           params: {
-            event: { type: "string" },
+            type: "object",
+            properties: {
+              event: { type: "string" },
+            },
           },
           querystring: {
-            stringPayload: { type: "string" },
-            integerPayload: { type: "string" },
+            type: "object",
+            properties: {
+              stringPayload: { type: "string" },
+              integerPayload: { type: "string" },
+            },
           },
           body: {
             type: "object",

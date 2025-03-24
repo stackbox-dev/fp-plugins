@@ -1,13 +1,13 @@
+import { PubSub } from "@google-cloud/pubsub";
 import { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
-import { PubSub } from "@google-cloud/pubsub";
-import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
 import {
   CreateHandlerRunner,
   ErrorWithStatus,
   getHandlerMap,
   noMatchingHandlers,
 } from "./commons";
+import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
 
 interface PubsubMessage {
   message: {
@@ -17,6 +17,7 @@ interface PubsubMessage {
     publishTime: string;
   };
   subscription: string;
+  attempt: number;
 }
 
 const plugin: FastifyPluginAsync<EventBusOptions> = async function (
@@ -79,16 +80,20 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
       publishToPubSub(event, payload, null, processAfterDelayMs ?? 0);
     },
   };
-  f.decorate("EventBus", bus);
+  f.decorate("EventBus", {
+    getter() {
+      return bus;
+    },
+  });
 
-  f.decorateRequest("EventBus", bus);
-  f.addHook("onRequest", function (req, _reply, done) {
-    req.EventBus = {
-      publish(event, payload, processAfterDelayMs) {
-        publishToPubSub(event, payload, null, processAfterDelayMs ?? 0, req);
-      },
-    };
-    done();
+  f.decorateRequest("EventBus", {
+    getter() {
+      return {
+        publish: (event, payload, processAfterDelayMs) => {
+          publishToPubSub(event, payload, null, processAfterDelayMs ?? 0, this);
+        },
+      };
+    },
   });
 
   const selectAndRunHandlers = CreateHandlerRunner(f, options, handlerMap);
@@ -113,6 +118,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         subscription: body.subscription,
         attributes: body.message.attributes,
         publishTime: body.message.publishTime,
+        attempt: body.attempt,
       });
       options.validateMsg(eventMsg.event, eventMsg.data, req);
 
@@ -134,8 +140,13 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
           eventMsg.publishTime.getTime() + eventMsg.processAfterDelayMs
       ) {
         // wait for pub-sub to repush. can't process so early
-        reply.send(`ProcessAfterDelayMs=${eventMsg.processAfterDelayMs}`);
-        reply.status(425);
+        req.log.info({
+          tag: "PUB_SUB_MSG_DELAYED",
+          eventId: eventMsg.id,
+        });
+        reply
+          .status(425)
+          .send({ processAfterDelayMs: eventMsg?.processAfterDelayMs });
         return reply;
       }
 
@@ -153,11 +164,9 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         return reply;
       } catch (err) {
         if (err instanceof ErrorWithStatus) {
-          reply.send(err.message);
-          reply.status(err.status);
+          reply.status(err.status).send(err.message);
         } else {
-          reply.send("ERROR");
-          reply.status(500);
+          reply.status(500).send("ERROR");
         }
         return reply;
       }

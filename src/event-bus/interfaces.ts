@@ -13,7 +13,7 @@ export interface EventBusOptions {
   processError(err: any, ctx: ActionContext): { err: any; status: number };
   disableEventPublishRoute?: boolean;
   actionConcurrency?: number;
-  registry: Registry;
+  registry?: Registry;
 }
 
 export type PublishToPubSub = (

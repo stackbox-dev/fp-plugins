@@ -1,7 +1,7 @@
+import * as timers from "node:timers/promises";
 import { Message, PubSub, Subscription } from "@google-cloud/pubsub";
 import { FastifyInstance } from "fastify";
 import { EventConsumerBuilder } from "./interface";
-import { exponentialDelay } from "./utils";
 
 /**
  * GCP Pub/Sub supports
@@ -99,21 +99,6 @@ class Runner {
       return;
     }
 
-    const MAX_ATTEMPTS = 10;
-    if (attempt > 0 && attempt < MAX_ATTEMPTS) {
-      await exponentialDelay(attempt);
-    } else if (attempt >= MAX_ATTEMPTS) {
-      // recursion exit
-      this.instance.log.error({
-        tag: "GCP_PUBSUB_RECEIVER_MAX_ATTEMPTS",
-        msg: msg.data,
-        att: msg.attributes,
-        attempt,
-      });
-      msg.nack();
-      return;
-    }
-
     try {
       const resp = await this.instance.inject({
         method: "POST",
@@ -125,6 +110,7 @@ class Runner {
             messageId: msg.id,
             publishTime: msg.publishTime.toISOString(),
           },
+          attempt,
           subscription: this.subName,
         },
         headers: {
@@ -136,7 +122,12 @@ class Runner {
       } else if (resp.statusCode === 429 || resp.statusCode === 409) {
         // rate-limited or lock-conflict
         msg.nack();
-      } else if (resp.statusCode === 425) {
+      } else if (resp.statusCode === 425 && attempt < 2) {
+        const parsed = JSON.parse(resp.body);
+        const processAfterDelayMs = parsed?.processAfterDelayMs ?? 0;
+        if (processAfterDelayMs > 0) {
+          await timers.setTimeout(processAfterDelayMs);
+        }
         await this.processMsg(msg, attempt + 1);
       } else {
         msg.nack();

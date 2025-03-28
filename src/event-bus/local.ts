@@ -28,14 +28,6 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
       return bus;
     },
   });
-  f.addHook("onRequest", function (req, _reply, done) {
-    req.EventBus = {
-      publish(event, payload, processAfterDelayMs) {
-        publishToPubSub(event, payload, null, processAfterDelayMs ?? 0, req);
-      },
-    };
-    done();
-  });
 
   const messages: EventMessage[] = [];
 

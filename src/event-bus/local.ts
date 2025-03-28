@@ -1,11 +1,11 @@
 import { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
-import { EventBusOptions, EventMessage } from "./interfaces";
 import {
   CreateHandlerRunner,
   getHandlerMap,
   noMatchingHandlers,
 } from "./commons";
+import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
 
 const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   f,
@@ -13,9 +13,19 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 ) {
   const handlerMap = getHandlerMap(options);
 
-  f.decorateRequest("EventBus", {
+  const bus: EventBus = {
     publish(event, payload, processAfterDelayMs) {
       publishToPubSub(event, payload, null, processAfterDelayMs ?? 0);
+    },
+  };
+  f.decorate("EventBus", {
+    getter() {
+      return bus;
+    },
+  });
+  f.decorateRequest("EventBus", {
+    getter() {
+      return bus;
     },
   });
   f.addHook("onRequest", function (req, _reply, done) {

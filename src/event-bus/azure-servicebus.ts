@@ -135,14 +135,6 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
       };
     },
   });
-  f.addHook("onRequest", function (req, _reply, done) {
-    req.EventBus = {
-      publish(event, payload, processAfterDelayMs) {
-        publishToPubSub(event, payload, null, processAfterDelayMs ?? 0, req);
-      },
-    };
-    done();
-  });
 
   const selectAndRunHandlers = CreateHandlerRunner(f, options, handlerMap);
 

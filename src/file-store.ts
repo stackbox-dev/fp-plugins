@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as stream from "node:stream";
 import * as S3 from "@aws-sdk/client-s3";
 import * as AzureIden from "@azure/identity";
 import { defaultProvider } from "@aws-sdk/credential-provider-node";
@@ -19,6 +20,11 @@ export interface FileStore {
   ): Promise<void>;
   getAsBuffer(filepath: string): Promise<Buffer>;
   getAsStream(filepath: string): Promise<NodeJS.ReadableStream>;
+  copyFromStream(
+    filepath: string,
+    contentType: string,
+    stream: stream.Readable,
+  ): Promise<void>;
   copyFromLocalFile(
     filepath: string,
     contentType: string,
@@ -81,6 +87,17 @@ class LocalFileStore implements FileStore {
       return fs.createReadStream(p);
     }
     throw new Error(`File not found: ${p}`);
+  }
+  async copyFromStream(
+    filepath: string,
+    _contentType: string,
+    rs: NodeJS.ReadableStream,
+  ): Promise<void> {
+    const pth = path.join(this.dir, filepath);
+    await fs.promises.mkdir(path.dirname(pth), {
+      recursive: true,
+    });
+    await stream.promises.pipeline(rs, fs.createWriteStream(pth));
   }
 }
 
@@ -147,6 +164,21 @@ class AzureFileStore implements FileStore {
     }
     return resp.readableStreamBody;
   }
+  async copyFromStream(
+    filepath: string,
+    contentType: string,
+    rs: stream.Readable,
+  ): Promise<void> {
+    const blob = this.client.getBlockBlobClient(filepath);
+    const resp = await blob.uploadStream(rs, undefined, undefined, {
+      blobHTTPHeaders: {
+        blobContentType: contentType,
+      },
+    });
+    if (resp.errorCode) {
+      throw new Error(resp.errorCode);
+    }
+  }
 }
 
 class GCPFileStore implements FileStore {
@@ -191,6 +223,21 @@ class GCPFileStore implements FileStore {
   async getAsStream(filepath: string): Promise<NodeJS.ReadableStream> {
     const gcsfile = this.storage.bucket(this.bucket).file(filepath);
     return gcsfile.createReadStream();
+  }
+
+  async copyFromStream(
+    filepath: string,
+    contentType: string,
+    rs: NodeJS.ReadableStream,
+  ): Promise<void> {
+    const gcsfile = this.storage.bucket(this.bucket).file(filepath);
+    await stream.promises.pipeline(
+      rs,
+      gcsfile.createWriteStream({
+        resumable: false,
+        contentType,
+      }),
+    );
   }
 }
 
@@ -271,6 +318,21 @@ class S3FileStore implements FileStore {
       throw new Error(`No Body in response for ${filepath}`);
     }
     return data.Body as NodeJS.ReadableStream;
+  }
+
+  async copyFromStream(
+    filepath: string,
+    contentType: string,
+    rs: stream.Readable,
+  ): Promise<void> {
+    await this.client.send(
+      new S3.PutObjectCommand({
+        Bucket: this.bucket,
+        Key: filepath,
+        Body: rs,
+        ContentType: contentType,
+      }),
+    );
   }
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@stackbox-dev/fp-plugins",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Fastify Plugins used in various stackbox applications",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

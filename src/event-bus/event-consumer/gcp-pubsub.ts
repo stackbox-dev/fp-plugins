@@ -73,7 +73,6 @@ class Runner {
     this.subscription = this.pubsub.subscription(this.subName, {
       flowControl: {
         allowExcessMessages: false,
-        maxExtensionMinutes: 60,
         maxMessages:
           parseInt(process.env.EVENT_SUBSCRIPTION_MAX_MESSAGES ?? "10", 10) ||
           10,

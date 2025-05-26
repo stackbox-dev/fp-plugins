@@ -11,8 +11,16 @@ import { FastifyInstance, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { streamToBuffer } from "./utils";
 
+export interface FileInfo {
+  size: number;
+  contentType: string;
+  lastModified: Date;
+}
+
 export interface FileStore {
   exists(filepath: string): Promise<boolean>;
+  // return null if file does not exist
+  getInfo(filepath: string): Promise<FileInfo | null>;
   save(
     filepath: string,
     contentType: string,
@@ -56,6 +64,23 @@ class LocalFileStore implements FileStore {
     const p = path.join(this.dir, filepath);
     return !!(await fs.promises.stat(p));
   }
+  async getInfo(filepath: string): Promise<FileInfo | null> {
+    try {
+      const p = path.join(this.dir, filepath);
+      const stat = await fs.promises.stat(p);
+      return {
+        size: stat.size,
+        contentType: "application/octet-stream",
+        lastModified: stat.mtime,
+      };
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return null;
+      }
+      throw err;
+    }
+  }
+
   async save(
     filepath: string,
     _contentType: string,
@@ -179,6 +204,24 @@ class AzureFileStore implements FileStore {
       throw new Error(resp.errorCode);
     }
   }
+
+  async getInfo(filepath: string): Promise<FileInfo | null> {
+    try {
+      const blob = this.client.getBlobClient(filepath);
+      const properties = await blob.getProperties();
+
+      return {
+        size: properties.contentLength || 0,
+        contentType: properties.contentType || "application/octet-stream",
+        lastModified: properties.lastModified || new Date(),
+      };
+    } catch (err) {
+      if (err.statusCode === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
 }
 
 class GCPFileStore implements FileStore {
@@ -238,6 +281,29 @@ class GCPFileStore implements FileStore {
         contentType,
       }),
     );
+  }
+
+  async getInfo(filepath: string): Promise<FileInfo | null> {
+    try {
+      const gcsfile = this.storage.bucket(this.bucket).file(filepath);
+      const [metadata] = await gcsfile.getMetadata();
+
+      return {
+        size:
+          typeof metadata.size === "number"
+            ? metadata.size
+            : parseInt(metadata.size ?? "0", 10) || 0,
+        contentType: metadata.contentType || "application/octet-stream",
+        lastModified: metadata.updated
+          ? new Date(metadata.updated)
+          : new Date(),
+      };
+    } catch (err) {
+      if (err.code === 404) {
+        return null;
+      }
+      throw err;
+    }
   }
 }
 
@@ -333,6 +399,31 @@ class S3FileStore implements FileStore {
         ContentType: contentType,
       }),
     );
+  }
+
+  async getInfo(filepath: string): Promise<FileInfo | null> {
+    try {
+      const data = await this.client.send(
+        new S3.HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: filepath,
+        }),
+      );
+
+      return {
+        size: data.ContentLength || 0,
+        contentType: data.ContentType || "application/octet-stream",
+        lastModified: data.LastModified || new Date(),
+      };
+    } catch (err) {
+      if (
+        err instanceof S3.NoSuchKey ||
+        err["$metadata"]?.httpStatusCode === 404
+      ) {
+        return null;
+      }
+      throw err;
+    }
   }
 }
 

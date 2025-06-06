@@ -59,7 +59,7 @@ const plugin: FastifyPluginAsync<{
 };
 
 class LocalFileStore implements FileStore {
-  constructor(public dir: string) {}
+  constructor(public dir: string) { }
   async exists(filepath: string): Promise<boolean> {
     const p = path.join(this.dir, filepath);
     return !!(await fs.promises.stat(p));
@@ -311,7 +311,7 @@ class S3FileStore implements FileStore {
   constructor(
     private client: S3.S3Client,
     private bucket: string,
-  ) {}
+  ) { }
 
   async exists(filepath: string): Promise<boolean> {
     try {
@@ -469,7 +469,7 @@ async function ConfigureGCP(f: FastifyInstance) {
 async function ConfigureAWS(f: FastifyInstance) {
   const client = new S3.S3Client({
     region: process.env.AWS_S3_REGION ?? "us-east-1",
-    credentialDefaultProvider: defaultProvider() as any,
+    credentialDefaultProvider: defaultProvider,
   });
 
   const bucket = process.env.S3_BUCKET;
@@ -481,7 +481,6 @@ async function ConfigureAWS(f: FastifyInstance) {
 }
 
 async function ConfigureMinio(f: FastifyInstance) {
-  const S3 = await import("@aws-sdk/client-s3");
   if (!process.env.MINIO_ENDPOINT) {
     throw new Error("MINIO_ENDPOINT env-var is not defined");
   }

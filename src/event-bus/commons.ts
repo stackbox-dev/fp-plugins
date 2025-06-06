@@ -71,6 +71,29 @@ export class ErrorWithStatus extends Error {
   }
 }
 
+/**
+ * Creates an action factory that generates an asynchronous function to execute a specific event handler.
+ * This factory encapsulates the logic for handling an event, including error processing and a retry strategy.
+ *
+ * Retry Strategy:
+ * 1. If `eventMsg.attributes.noRetry` is "true", no retry attempt is made, and the function returns.
+ * 2. Otherwise, the error is processed by `options.processError(err, ctx)`.
+ * 3. If `ctx.specifiedFile` is not set (i.e., the event was not initially targeted at a specific handler file):
+ *    - The event is re-published to Pub/Sub via `ctx.publishToPubSub`.
+ *    - The re-published event will include `ctx.file` (the file of the handler that just failed)
+ *      as the `specifiedFile` attribute. This targets the retry to the specific handler that failed.
+ * 4. If `ctx.specifiedFile` is set (i.e., this is likely a retry for a specific handler):
+ *    - An `ErrorWithStatus` is thrown. This allows the underlying Pub/Sub mechanism
+ *      (or other calling infrastructure) to handle further retries or dead-lettering based on the error.
+ *
+ * Metrics (Prometheus):
+ * - A counter (`appCtx.counter`) is incremented for each handler execution, labeled with event, file, and status.
+ * - A histogram (`appCtx.histogram`) observes the latency of each handler execution, labeled with event, file, and status.
+ *
+ * @param options - Event bus options, including `processError` and `registry`.
+ * @param appCtx - Application context containing Fastify instance, Prometheus counter, and histogram.
+ * @returns A function that takes an `ActionContext` and returns an `Action` (an async function).
+ */
 const CreateActionFactory =
   (options: EventBusOptions, appCtx: AppContext) =>
   (ctx: ActionContext) =>

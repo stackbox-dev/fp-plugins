@@ -75,7 +75,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
     await client.close();
   });
 
-  function publishToPubSub(
+  function publishToServiceBus(
     event: string,
     payload: any,
     file: string | null,
@@ -117,7 +117,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 
   const bus: EventBus = {
     publish(event, payload, processAfterDelayMs) {
-      publishToPubSub(event, payload, null, processAfterDelayMs ?? 0);
+      publishToServiceBus(event, payload, null, processAfterDelayMs ?? 0);
     },
   };
   f.decorate("EventBus", {
@@ -130,7 +130,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
     getter() {
       return {
         publish: (event, payload, processAfterDelayMs) => {
-          publishToPubSub(event, payload, null, processAfterDelayMs ?? 0, this);
+          publishToServiceBus(event, payload, null, processAfterDelayMs ?? 0, this);
         },
       };
     },
@@ -184,7 +184,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 
       try {
         await selectAndRunHandlers(req, msg, (event, payload, file) =>
-          publishToPubSub(event, payload, file, msg.processAfterDelayMs, req),
+          publishToServiceBus(event, payload, file, msg.processAfterDelayMs, req),
         );
         reply.send("OK");
         return reply;

@@ -13,7 +13,12 @@ export async function exponentialDelay(
   attempt: number,
   baseDelayMs: number = BASE_DELAY,
   maxDelayMs: number = MAX_DELAY,
+  randomizationFactor: number = 0.5,
 ): Promise<void> {
-  const delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
+  let delay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
+  if (randomizationFactor > 0) {
+    const randomFactor = (Math.random() - 0.5) * randomizationFactor * delay;
+    delay = Math.max(0, delay + randomFactor);
+  }
   await timers.setTimeout(delay);
 }

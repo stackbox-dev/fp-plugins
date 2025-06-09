@@ -4,6 +4,7 @@ import {
   ensureRabbitMqExchangesAndQueues,
 } from "../rabbitmq-utils";
 import { EventConsumerBuilder } from "./interface";
+import { randomDelay } from "./utils";
 
 /**
  * RabbitMq supports
@@ -58,6 +59,7 @@ export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
         if (resp.statusCode >= 200 && resp.statusCode < 300) {
           return ConsumerStatus.ACK;
         } else if (resp.statusCode === 429 || resp.statusCode === 409) {
+          await randomDelay();
           // rate-limited or lock-conflict
           return ConsumerStatus.REQUEUE;
         } else if (resp.statusCode === 425) {

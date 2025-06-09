@@ -1,7 +1,7 @@
 import * as AzureIden from "@azure/identity";
 import { RetryMode, ServiceBusClient } from "@azure/service-bus";
 import { EventConsumerBuilder } from "./interface";
-import { exponentialDelay } from "./utils";
+import { exponentialDelay, randomDelay } from "./utils";
 
 /**
  * Azure ServiceBus supports
@@ -77,6 +77,7 @@ export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
             await receiver.completeMessage(msg);
           } else if (resp.statusCode === 429 || resp.statusCode === 409) {
             // rate-limited or lock-conflict
+            await randomDelay();
             await receiver.abandonMessage(msg);
           } else if (resp.statusCode === 425) {
             // delayed message
@@ -118,7 +119,7 @@ export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
   );
   instance.log.info(
     "Attached to Azure ServiceBus Subscription=" +
-      process.env.EVENT_SUBSCRIPTION,
+    process.env.EVENT_SUBSCRIPTION,
   );
   return {
     close: async () => {

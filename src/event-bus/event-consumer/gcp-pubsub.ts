@@ -2,6 +2,7 @@ import * as timers from "node:timers/promises";
 import { Message, PubSub, Subscription } from "@google-cloud/pubsub";
 import { FastifyInstance } from "fastify";
 import { EventConsumerBuilder } from "./interface";
+import { randomDelay } from "./utils";
 
 /**
  * GCP Pub/Sub supports
@@ -53,7 +54,7 @@ class Runner {
     public readonly instance: FastifyInstance,
     public readonly pubsub: PubSub,
     public readonly subName: string,
-  ) {}
+  ) { }
 
   async close(): Promise<void> {
     this.ctrl.abort();
@@ -120,6 +121,7 @@ class Runner {
         msg.ack();
       } else if (resp.statusCode === 429 || resp.statusCode === 409) {
         // rate-limited or lock-conflict
+        await randomDelay();
         msg.nack();
       } else if (resp.statusCode === 425 && attempt < 2) {
         const parsed = JSON.parse(resp.body);

@@ -5,6 +5,8 @@ Fastify plugins for Stackbox applications.
 ## Installation
 
 ```bash
+pnpm install @stackbox/fp-plugins
+# or
 npm install @stackbox/fp-plugins
 ```
 
@@ -100,7 +102,7 @@ app.register(Plugins.EventBus, {
 #### Usage Example
 
 ```typescript
-import { EventBus, Plugins } from "@stackbox/fp-plugins";
+import { EventBus, Plugins, EventBusOptions, EventMessage } from "@stackbox/fp-plugins";
 
 const app = fastify();
 
@@ -251,6 +253,7 @@ The plugin provides a `FileStore` interface with the following methods:
 ```typescript
 interface FileStore {
   exists(filepath: string): Promise<boolean>;
+  getInfo(filepath: string): Promise<FileInfo | null>;
   save(
     filepath: string,
     contentType: string,
@@ -269,12 +272,18 @@ interface FileStore {
     localFilepath: string,
   ): Promise<void>;
 }
+
+interface FileInfo {
+  size: number;
+  contentType: string;
+  lastModified: Date;
+}
 ```
 
 #### Usage Example
 
 ```typescript
-import { Plugins } from "@stackbox/fp-plugins";
+import { Plugins, FileStore } from "@stackbox/fp-plugins";
 import { fastify } from "fastify";
 
 const app = fastify();
@@ -290,6 +299,12 @@ app.post("/upload", async (request, reply) => {
 
   // Check if file exists
   const exists = await request.server.FileStore.exists(filepath);
+
+  // Get file info (returns null if file doesn't exist)
+  const fileInfo = await request.server.FileStore.getInfo(filepath);
+  if (fileInfo) {
+    console.log(`File size: ${fileInfo.size}, Content type: ${fileInfo.contentType}`);
+  }
 
   // Save file
   await request.server.FileStore.save(filepath, contentType, data);
@@ -317,6 +332,26 @@ app.post("/upload", async (request, reply) => {
   return { success: true };
 });
 ```
+
+## Development
+
+### Prerequisites
+- Node.js 18+ 
+- pnpm
+
+### Setup
+```bash
+pnpm install
+```
+
+### Common Commands
+- `pnpm test` - Run tests
+- `pnpm run test:coverage` - Run tests with coverage
+- `pnpm run build` - Build the project
+- `pnpm run pretty` - Format code
+
+### Testing
+Tests are written using Jest and located alongside source files with `.spec.ts` extension.
 
 ## Contributing
 

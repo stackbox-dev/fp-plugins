@@ -12,8 +12,10 @@
     "prepare": "husky",
     "pretty": "prettier --write \"./src/**/*.{js,ts,json,md}\"",
     "clean": "rimraf dist",
-    "test": "jest",
-    "test:coverage": "jest --coverage",
+    "test": "jest --testPathIgnorePatterns=rabbitmq.spec.ts",
+    "test:coverage": "jest --coverage --testPathIgnorePatterns=rabbitmq.spec.ts",
+    "test:rabbitmq": "jest rabbitmq.spec.ts --testTimeout=120000",
+    "test:all": "jest --testTimeout=120000",
     "transpile": "tsc -p tsconfig.build.json",
     "build": "run-s clean transpile",
     "prepublishOnly": "npm run build"
@@ -53,6 +55,7 @@
     "npm-run-all": "^4.1.5",
     "prettier": "^3.7.4",
     "rimraf": "^6.1.2",
+    "testcontainers": "^11.11.0",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"

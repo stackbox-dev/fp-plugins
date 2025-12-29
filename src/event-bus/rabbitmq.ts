@@ -9,7 +9,10 @@ import {
   noMatchingHandlers,
 } from "./commons";
 import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
-import { ensureRabbitMqExchangesAndQueues } from "./rabbitmq-utils";
+import {
+  ensureRabbitMqExchangesAndQueues,
+  getServicePrefix,
+} from "./rabbitmq-utils";
 
 interface IncomingRabbitMqMessage {
   messageId: number;
@@ -135,7 +138,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         return reply;
       }
       req.log.info({
-        tag: "RABBIMQ_MESSAGE_RECEIVED",
+        tag: "RABBITMQ_MESSAGE_RECEIVED",
         messageId: rawMsg.messageId,
       });
       const msg = convert(rawMsg);
@@ -166,7 +169,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 
       try {
         await selectAndRunHandlers(req, msg, (event, payload, file) =>
-          publishToExchange(event, payload, file, msg.processAfterDelayMs, req),
+          publishToExchange(event, payload, file, 0, req),
         );
         reply.send("OK");
         return reply;
@@ -185,7 +188,15 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 export = fp(plugin, { name: "fp-eventbus-rabbitmq" });
 
 function convert(msg: IncomingRabbitMqMessage): EventMessage {
-  const body: MessageBody = JSON.parse(msg.body);
+  let body: MessageBody;
+  try {
+    body = JSON.parse(msg.body);
+  } catch {
+    throw new ErrorWithStatus(
+      400,
+      `Invalid JSON in message body: ${msg.body?.substring(0, 100)}`,
+    );
+  }
   return {
     id: "" + msg.messageId,
     attributes: {
@@ -206,78 +217,119 @@ function createMessageFlusher(
   msgQueue: Queue<MessageWithAttempts>,
 ) {
   let running = false;
+  let currentFlush: Promise<void> | null = null;
   const CONCURRENCY = 10;
   return async function flush(force = false) {
-    if (msgQueue.size === 0 || (!force && running)) {
+    if (msgQueue.size === 0) {
       return;
     }
-    running = true;
-    let flushed = 0;
-    const total = msgQueue.size;
-    const start = Date.now();
-    try {
-      const batch: MessageWithAttempts[] = [];
-      while (msgQueue.size > 0) {
-        const message = msgQueue.dequeue();
-        if (!message) {
-          break;
-        }
-        batch.push(message);
-
-        if (batch.length >= CONCURRENCY) {
-          await Promise.all(
-            batch.map((msg) =>
-              publisher
-                .send(
-                  {
-                    appId: `wms.${process.env.K_SERVICE}`,
-                    contentType: "application/json",
-                    durable: true,
-                    exchange: `wms.main-exchange`,
-                    headers: {
-                      event: msg.body.event,
-                      file: msg.body.file,
-                      processAfterDelayMs: "" + msg.body.processAfterDelayMs,
-                    },
-                  },
-                  JSON.stringify(msg.body, null, 0),
-                )
-                .then(() => {
-                  flushed++;
-                })
-                .catch((err) => {
-                  f.log.error({
-                    tag: "RABBITMQ_PUBLISH_ERROR",
-                    msg: err.message,
-                    err,
-                  });
-                  msg.attempts++;
-                  if (msg.attempts < 3) {
-                    msgQueue.enqueue(msg);
-                  }
-                }),
-            ),
-          );
-          batch.length = 0;
-        }
-      }
-    } catch (err) {
-      f.log.error({
-        tag: "RABBITMQ_FLUSH_ERROR",
-        msg: err.message,
-        err,
-      });
-    } finally {
-      running = false;
-      const latency = Date.now() - start;
-      if (latency > 100) {
-        f.log.warn({
-          tag: "RABBITMQ_SLOW_FLUSH",
-          latency,
-          total,
-          flushed,
-        });
+    // If a flush is already running, wait for it to complete (for forced flushes) or skip
+    if (running) {
+      if (force && currentFlush) {
+        await currentFlush;
+      } else {
+        return;
       }
     }
+    running = true;
+    const doFlush = async () => {
+      let flushed = 0;
+      const total = msgQueue.size;
+      const start = Date.now();
+      try {
+        const batch: MessageWithAttempts[] = [];
+        while (msgQueue.size > 0) {
+          const message = msgQueue.dequeue();
+          if (!message) {
+            break;
+          }
+          batch.push(message);
+
+          if (batch.length >= CONCURRENCY) {
+            await flushBatch(batch, publisher, f, msgQueue, () => flushed++);
+            batch.length = 0;
+          }
+        }
+        // Flush any remaining messages in the batch
+        if (batch.length > 0) {
+          await flushBatch(batch, publisher, f, msgQueue, () => flushed++);
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        f.log.error({
+          tag: "RABBITMQ_FLUSH_ERROR",
+          msg: errMsg,
+          err,
+        });
+      } finally {
+        running = false;
+        currentFlush = null;
+        const latency = Date.now() - start;
+        if (latency > 100) {
+          f.log.warn({
+            tag: "RABBITMQ_SLOW_FLUSH",
+            latency,
+            total,
+            flushed,
+          });
+        }
+      }
+    };
+    currentFlush = doFlush();
+    await currentFlush;
   };
+}
+
+async function flushBatch(
+  batch: MessageWithAttempts[],
+  publisher: Publisher,
+  f: FastifyInstance,
+  msgQueue: Queue<MessageWithAttempts>,
+  onSuccess: () => void,
+) {
+  const service = process.env.K_SERVICE ?? "";
+  const prefix = getServicePrefix(service);
+  await Promise.all(
+    batch.map((msg) =>
+      publisher
+        .send(
+          {
+            appId: `${prefix}.${service}`,
+            contentType: "application/json",
+            durable: true,
+            exchange: `${prefix}.main-exchange`,
+            headers: {
+              event: msg.body.event,
+              file: msg.body.file,
+              processAfterDelayMs: "" + msg.body.processAfterDelayMs,
+            },
+          },
+          JSON.stringify(msg.body, null, 0),
+        )
+        .then(() => {
+          onSuccess();
+        })
+        .catch((err: unknown) => {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          msg.attempts++;
+          if (msg.attempts < 3) {
+            f.log.error({
+              tag: "RABBITMQ_PUBLISH_ERROR",
+              msg: errMsg,
+              err,
+              attempt: msg.attempts,
+            });
+            msgQueue.enqueue(msg);
+          } else {
+            f.log.error({
+              tag: "RABBITMQ_MESSAGE_PERMANENTLY_DROPPED",
+              msg: errMsg,
+              err,
+              event: msg.body.event,
+              payload: msg.body.payload,
+            });
+          }
+        }),
+    ),
+  );
 }

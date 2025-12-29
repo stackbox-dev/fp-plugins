@@ -29,6 +29,7 @@ export async function ensureRabbitMqExchangesAndQueues(
     queue: `${prefix}.queue.${service}`,
     arguments: {
       "x-dead-letter-exchange": `${prefix}.retry-exchange.${service}`,
+      "x-dead-letter-routing-key": "retry", // Fixed routing key for DLX
       "x-queue-type": "classic",
     },
     autoDelete: false,
@@ -53,7 +54,8 @@ export async function ensureRabbitMqExchangesAndQueues(
     queue: `${prefix}.retry-queue.${service}`,
     arguments: {
       "x-message-ttl": 5000,
-      "x-dead-letter-exchange": `${prefix}.main-exchange`,
+      "x-dead-letter-exchange": "", // default exchange routes by queue name
+      "x-dead-letter-routing-key": `${prefix}.queue.${service}`,
       "x-queue-type": "classic",
     },
     autoDelete: false,
@@ -64,5 +66,17 @@ export async function ensureRabbitMqExchangesAndQueues(
   await connection.queueBind({
     exchange: `${prefix}.retry-exchange.${service}`,
     queue: `${prefix}.retry-queue.${service}`,
+    routingKey: "retry", // Must match x-dead-letter-routing-key from main queue
+  });
+  // Dead Letter Queue for messages that exceed max retries (manual retry)
+  await connection.queueDeclare({
+    queue: `${prefix}.dlq.${service}`,
+    arguments: {
+      "x-queue-type": "classic",
+    },
+    autoDelete: false,
+    durable: true,
+    exclusive: false,
+    passive: false,
   });
 }

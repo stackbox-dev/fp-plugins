@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import { Queue } from "mnemonist";
@@ -37,6 +38,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   options,
 ) {
   const handlerMap = getHandlerMap(options);
+  f.decorate("_hasEventHandlers", handlerMap.size > 0);
 
   if (!process.env.RABBITMQ_URL) {
     throw new Error("RabbitMq requires RABBITMQ_URL");
@@ -294,6 +296,7 @@ async function flushBatch(
       publisher
         .send(
           {
+            messageId: randomUUID(),
             appId: `${prefix}.${service}`,
             contentType: "application/json",
             durable: true,

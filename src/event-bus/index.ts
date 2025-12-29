@@ -9,7 +9,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   switch (options.busType) {
     case "gcp-pubsub":
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      f.register(require("./gcp-pubsub"), options);
+      await f.register(require("./gcp-pubsub"), options);
       break;
     case "azure-servicebus":
       if (!options.namespace) {
@@ -18,15 +18,15 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         );
       }
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      f.register(require("./azure-servicebus"), options);
+      await f.register(require("./azure-servicebus"), options);
       break;
     case "rabbitmq":
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      f.register(require("./rabbitmq"), options);
+      await f.register(require("./rabbitmq"), options);
       break;
     default:
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      f.register(require("./local"), options);
+      await f.register(require("./local"), options);
   }
 
   ///

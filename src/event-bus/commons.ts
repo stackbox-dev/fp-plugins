@@ -174,6 +174,13 @@ export function CreateHandlerRunner(
     const handlers = handlersMap.get(eventMsg.event) ?? [];
     const actions: Action[] = [];
     const specifiedFile = eventMsg.attributes.file;
+    req.log.debug({
+      tag: "HANDLER_LOOKUP",
+      event: eventMsg.event,
+      specifiedFile,
+      registeredHandlers: handlers.map((h) => h.file),
+      handlersCount: handlers.length,
+    });
     for (const { file, handler } of handlers) {
       if (specifiedFile && file !== specifiedFile) {
         continue;
@@ -190,8 +197,18 @@ export function CreateHandlerRunner(
       actions.push(act);
     }
 
+    req.log.debug({
+      tag: "HANDLER_ACTIONS_CREATED",
+      event: eventMsg.event,
+      actionsCount: actions.length,
+    });
     for (let i = 0; i < actions.length; i += CONCURRENCY) {
       await Promise.all(actions.slice(i, i + CONCURRENCY).map((act) => act()));
     }
+    req.log.debug({
+      tag: "HANDLER_ACTIONS_COMPLETED",
+      event: eventMsg.event,
+      actionsCount: actions.length,
+    });
   };
 }

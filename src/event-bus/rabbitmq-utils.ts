@@ -28,6 +28,7 @@ export async function ensureRabbitMqExchangesAndQueues(
   await connection.queueDeclare({
     queue: `${prefix}.queue.${service}`,
     arguments: {
+      "x-message-ttl": 300000, // 5 minutes
       "x-dead-letter-exchange": `${prefix}.retry-exchange.${service}`,
       "x-dead-letter-routing-key": "retry", // Fixed routing key for DLX
       "x-queue-type": "classic",
@@ -72,6 +73,7 @@ export async function ensureRabbitMqExchangesAndQueues(
   await connection.queueDeclare({
     queue: `${prefix}.dlq.${service}`,
     arguments: {
+      "x-message-ttl": 300000, // 5 minutes
       "x-queue-type": "classic",
     },
     autoDelete: false,

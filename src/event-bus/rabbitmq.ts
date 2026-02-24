@@ -48,7 +48,9 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   }
   const connection = new Connection(process.env.RABBITMQ_URL);
   const service = process.env.K_SERVICE;
-  await ensureRabbitMqExchangesAndQueues(connection, service);
+  if (options.ensureExchangesAndQueues) {
+    await ensureRabbitMqExchangesAndQueues(connection, service);
+  }
 
   const publisher = connection.createPublisher({ maxAttempts: 3 });
 

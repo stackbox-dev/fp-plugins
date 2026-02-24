@@ -11,6 +11,7 @@ export interface EventBusOptions {
   }[];
   validateMsg: (event: string, payload: any, req?: FastifyRequest) => void;
   processError(err: any, ctx: ActionContext): { err: any; status: number };
+  ensureExchangesAndQueues?: boolean;
   disableEventPublishRoute?: boolean;
   actionConcurrency?: number;
   registry?: Registry;

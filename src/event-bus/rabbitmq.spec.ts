@@ -1,10 +1,10 @@
 import Fastify, { FastifyInstance } from "fastify";
-import { GenericContainer, StartedTestContainer, Wait } from "testcontainers";
 import { Connection } from "rabbitmq-client";
+import { GenericContainer, StartedTestContainer, Wait } from "testcontainers";
 import { Plugins } from "../index";
+import { RabbitMqServiceBusConsumerBuilder } from "./event-consumer/rabbitmq";
 import { EventBusOptions, EventHandler } from "./interfaces";
 import { getServicePrefix } from "./rabbitmq-utils";
-import { RabbitMqServiceBusConsumerBuilder } from "./event-consumer/rabbitmq";
 
 describe("RabbitMQ Integration Tests", () => {
   let container: StartedTestContainer;
@@ -63,7 +63,9 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await fastify.register(Plugins.EventBus, eventBusOptions);
@@ -77,7 +79,9 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg,
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await fastify.register(Plugins.EventBus, eventBusOptions);
@@ -88,7 +92,11 @@ describe("RabbitMQ Integration Tests", () => {
       // Wait for flush interval
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      expect(validateMsg).toHaveBeenCalledWith("test.event", { data: "test-payload" }, undefined);
+      expect(validateMsg).toHaveBeenCalledWith(
+        "test.event",
+        { data: "test-payload" },
+        undefined,
+      );
     });
 
     it("should use dynamic prefix based on K_SERVICE", async () => {
@@ -98,7 +106,9 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await fastify.register(Plugins.EventBus, eventBusOptions);
@@ -156,7 +166,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await fastify.register(Plugins.EventBus, eventBusOptions);
@@ -181,7 +193,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait for message to be consumed
@@ -236,7 +248,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, consumerOptions);
@@ -248,13 +262,17 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await publisherFastify.register(Plugins.EventBus, publisherOptions);
 
       // Publish message
-      publisherFastify.EventBus.publish("e2e.test", { testData: "e2e-payload" });
+      publisherFastify.EventBus.publish("e2e.test", {
+        testData: "e2e-payload",
+      });
 
       // Wait for message to be published and consumed
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -278,7 +296,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -322,7 +342,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, consumerOptions);
@@ -333,7 +355,9 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await publisherFastify.register(Plugins.EventBus, publisherOptions);
@@ -351,8 +375,12 @@ describe("RabbitMQ Integration Tests", () => {
       expect(receivedMessages.length).toBe(15);
 
       // Verify message content - all indices should be present
-      const indices = receivedMessages.map((m) => m.index).sort((a, b) => a - b);
-      expect(indices).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+      const indices = receivedMessages
+        .map((m) => m.index)
+        .sort((a, b) => a - b);
+      expect(indices).toEqual([
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+      ]);
     });
 
     it("should handle multiple event types in same batch", async () => {
@@ -380,7 +408,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, consumerOptions);
@@ -391,17 +421,34 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await publisherFastify.register(Plugins.EventBus, publisherOptions);
 
       // Publish interleaved events
-      publisherFastify.EventBus.publish("multi.eventA", { type: "A", index: 1 });
-      publisherFastify.EventBus.publish("multi.eventB", { type: "B", index: 1 });
-      publisherFastify.EventBus.publish("multi.eventA", { type: "A", index: 2 });
-      publisherFastify.EventBus.publish("multi.eventB", { type: "B", index: 2 });
-      publisherFastify.EventBus.publish("multi.eventA", { type: "A", index: 3 });
+      publisherFastify.EventBus.publish("multi.eventA", {
+        type: "A",
+        index: 1,
+      });
+      publisherFastify.EventBus.publish("multi.eventB", {
+        type: "B",
+        index: 1,
+      });
+      publisherFastify.EventBus.publish("multi.eventA", {
+        type: "A",
+        index: 2,
+      });
+      publisherFastify.EventBus.publish("multi.eventB", {
+        type: "B",
+        index: 2,
+      });
+      publisherFastify.EventBus.publish("multi.eventA", {
+        type: "A",
+        index: 3,
+      });
 
       // Wait for processing
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -429,7 +476,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, consumerOptions);
@@ -440,7 +489,9 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await publisherFastify.register(Plugins.EventBus, publisherOptions);
@@ -483,11 +534,13 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await expect(
-        fastify.register(Plugins.EventBus, eventBusOptions)
+        fastify.register(Plugins.EventBus, eventBusOptions),
       ).rejects.toThrow("RabbitMq requires RABBITMQ_URL");
     });
 
@@ -499,11 +552,13 @@ describe("RabbitMQ Integration Tests", () => {
         busType: "rabbitmq",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await expect(
-        fastify.register(Plugins.EventBus, eventBusOptions)
+        fastify.register(Plugins.EventBus, eventBusOptions),
       ).rejects.toThrow("RabbitMq requires K_SERVICE");
     });
 
@@ -520,7 +575,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await fastify.register(Plugins.EventBus, eventBusOptions);
@@ -574,7 +631,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -620,7 +679,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -635,7 +696,7 @@ describe("RabbitMQ Integration Tests", () => {
           body: JSON.stringify({
             event: "same.event",
             payload: { test: "data" },
-            file: "fileA.ts",  // Only fileA.ts handler should run
+            file: "fileA.ts", // Only fileA.ts handler should run
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
           }),
@@ -666,7 +727,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -681,7 +744,7 @@ describe("RabbitMQ Integration Tests", () => {
           body: JSON.stringify({
             event: "broadcast.event",
             payload: { test: "data" },
-            file: null,  // No file filter - all handlers run
+            file: null, // No file filter - all handlers run
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
           }),
@@ -707,7 +770,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -722,7 +787,7 @@ describe("RabbitMQ Integration Tests", () => {
           body: JSON.stringify({
             event: "mismatch.event",
             payload: { test: "data" },
-            file: "different-file.ts",  // Doesn't match registered file
+            file: "different-file.ts", // Doesn't match registered file
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
           }),
@@ -748,7 +813,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -761,7 +828,7 @@ describe("RabbitMQ Integration Tests", () => {
         payload: {
           messageId: "msg-unknown",
           body: JSON.stringify({
-            event: "unknown.event",  // No handler registered
+            event: "unknown.event", // No handler registered
             payload: { test: "data" },
             file: null,
             processAfterDelayMs: 0,
@@ -792,7 +859,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -838,7 +907,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("Processed error"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("Processed error"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -852,7 +923,7 @@ describe("RabbitMQ Integration Tests", () => {
           body: JSON.stringify({
             event: "error.event",
             payload: { test: "data" },
-            file: "error.ts",  // Specify file to get ErrorWithStatus thrown
+            file: "error.ts", // Specify file to get ErrorWithStatus thrown
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
           }),
@@ -905,7 +976,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -928,7 +1001,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait for dead-letter retry cycle (5s TTL + processing time)
@@ -962,7 +1035,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -998,7 +1073,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait for dead-letter retry cycle
@@ -1024,7 +1099,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -1059,7 +1136,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait for dead-letter retry cycle
@@ -1085,7 +1162,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -1117,7 +1196,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait a bit for message to enter retry queue
@@ -1157,7 +1236,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       // Register hook BEFORE plugin
@@ -1192,7 +1273,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 1000,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait for REQUEUE cycle (randomDelay up to 10s + processing)
@@ -1228,7 +1309,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, eventBusOptions);
@@ -1263,7 +1346,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait for DLX retry cycle (5s TTL + processing)
@@ -1311,7 +1394,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await consumerFastify.register(Plugins.EventBus, serviceAOptions);
@@ -1335,12 +1420,15 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await serviceBFastify.register(Plugins.EventBus, serviceBOptions);
       await serviceBFastify.ready();
-      const consumerB = await RabbitMqServiceBusConsumerBuilder(serviceBFastify);
+      const consumerB =
+        await RabbitMqServiceBusConsumerBuilder(serviceBFastify);
 
       const connection = new Connection(rabbitmqUrl);
       const publisher = connection.createPublisher({ maxAttempts: 3 });
@@ -1358,7 +1446,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait for initial fanout + DLX retry cycle (5s TTL + processing)
@@ -1399,7 +1487,9 @@ describe("RabbitMQ Integration Tests", () => {
           },
         ],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       // Always return 500 to force message through all 10 retry cycles
@@ -1441,7 +1531,7 @@ describe("RabbitMQ Integration Tests", () => {
             file: null,
             processAfterDelayMs: 0,
             publishTimestamp: Date.now(),
-          })
+          }),
         );
 
         // Wait for 10 DLX cycles + processing time
@@ -1466,7 +1556,7 @@ describe("RabbitMQ Integration Tests", () => {
           async (msg: any) => {
             dlqMessage = msg;
             return 1; // ACK
-          }
+          },
         );
 
         // Give consumer time to receive message
@@ -1476,9 +1566,13 @@ describe("RabbitMQ Integration Tests", () => {
         // Verify DLQ message exists and has correct headers
         expect(dlqMessage).not.toBeNull();
         expect(dlqMessage.headers).toBeDefined();
-        expect(dlqMessage.headers["x-original-queue"]).toBe("dlq.queue.dlq-e2e-service");
+        expect(dlqMessage.headers["x-original-queue"]).toBe(
+          "dlq.queue.dlq-e2e-service",
+        );
         expect(dlqMessage.headers["x-final-status-code"]).toBe(500);
-        expect(dlqMessage.headers["x-final-retry-count"]).toBeGreaterThanOrEqual(10);
+        expect(
+          dlqMessage.headers["x-final-retry-count"],
+        ).toBeGreaterThanOrEqual(10);
 
         // Verify message body contains original payload
         const bodyStr = Buffer.isBuffer(dlqMessage.body)

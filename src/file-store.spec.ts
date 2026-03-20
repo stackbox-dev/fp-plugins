@@ -35,14 +35,14 @@ describe("FileStore Plugin", () => {
 
     it("should throw error for unknown storage type", async () => {
       await expect(
-        fastify.register(FileStorePlugin, { type: "unknown" as any })
+        fastify.register(FileStorePlugin, { type: "unknown" as any }),
       ).rejects.toThrow("Unknown storage type: unknown");
     });
 
     it("should register with s3 storage type", async () => {
       process.env.AWS_REGION = "us-east-1";
       process.env.S3_BUCKET = "test-bucket";
-      
+
       const mockS3Client = {
         send: jest.fn(),
       };
@@ -58,7 +58,9 @@ describe("FileStore Plugin", () => {
     let FileStore: FileStore;
 
     beforeEach(async () => {
-      tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "filestore-test-"));
+      tempDir = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), "filestore-test-"),
+      );
       process.env.LOCAL_STORAGE_DIR = tempDir;
       await fastify.register(FileStorePlugin, { type: "local" });
       FileStore = fastify.FileStore;
@@ -85,10 +87,10 @@ describe("FileStore Plugin", () => {
 
       await FileStore.save(filepath, "text/plain", content);
       const stream = await FileStore.getAsStream(filepath);
-      
+
       const chunks: Buffer[] = [];
       stream.on("data", (chunk) => chunks.push(chunk));
-      
+
       await new Promise((resolve) => {
         stream.on("end", resolve);
       });
@@ -99,11 +101,11 @@ describe("FileStore Plugin", () => {
 
     it("should check file existence", async () => {
       const filepath = "exists-test.txt";
-      
+
       // First save a file
       await FileStore.save(filepath, "text/plain", "content");
       expect(await FileStore.exists(filepath)).toBe(true);
-      
+
       // The current implementation throws for non-existent files, so test that
       const nonExistentPath = "non-existent-file.txt";
       await expect(FileStore.exists(nonExistentPath)).rejects.toThrow();
@@ -166,7 +168,7 @@ describe("FileStore Plugin", () => {
       };
 
       (S3.S3Client as jest.Mock).mockImplementation(() => mockS3Client);
-      
+
       process.env.AWS_REGION = "us-east-1";
       process.env.S3_BUCKET = "test-bucket";
 
@@ -185,7 +187,7 @@ describe("FileStore Plugin", () => {
       await FileStore.save("test.txt", "text/plain", "content");
 
       expect(mockS3Client.send).toHaveBeenCalledWith(
-        expect.any(S3.PutObjectCommand)
+        expect.any(S3.PutObjectCommand),
       );
     });
 
@@ -196,7 +198,7 @@ describe("FileStore Plugin", () => {
 
       expect(exists).toBe(true);
       expect(mockS3Client.send).toHaveBeenCalledWith(
-        expect.any(S3.HeadObjectCommand)
+        expect.any(S3.HeadObjectCommand),
       );
     });
 
@@ -252,9 +254,12 @@ describe("FileStore Plugin", () => {
         getContainerClient: jest.fn(() => mockContainerClient),
       };
 
-      (BlobServiceClient as jest.Mock).mockImplementation(() => mockBlobServiceClient);
+      (BlobServiceClient as jest.Mock).mockImplementation(
+        () => mockBlobServiceClient,
+      );
 
-      process.env.AZURE_STORAGE_ACCOUNT_URL = "https://test.blob.core.windows.net";
+      process.env.AZURE_STORAGE_ACCOUNT_URL =
+        "https://test.blob.core.windows.net";
       process.env.AZURE_STORAGE_CONTAINER = "test-container";
 
       await fastify.register(FileStorePlugin, { type: "azureBlob" });
@@ -286,7 +291,7 @@ describe("FileStore Plugin", () => {
           blobHTTPHeaders: {
             blobContentType: "text/plain",
           },
-        })
+        }),
       );
     });
   });

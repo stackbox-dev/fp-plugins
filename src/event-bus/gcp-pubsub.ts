@@ -8,6 +8,7 @@ import {
   noMatchingHandlers,
 } from "./commons";
 import { EventBus, EventBusOptions, EventMessage } from "./interfaces";
+import { safeCloseAll } from "./utils";
 
 interface PubsubMessage {
   message: {
@@ -31,6 +32,8 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   }
 
   const handlerMap = getHandlerMap(options);
+  f.decorate("_hasEventHandlers", handlerMap.size > 0);
+
   const client = new PubSub();
   const topic = client.topic(options.topic, {
     batching: {
@@ -40,9 +43,14 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   });
 
   f.addHook("onClose", async () => {
-    await topic.flush();
-    f.log.info({ tag: "GCP_PUBSUB_FINAL_FLUSH" });
-    await client.close();
+    f.log.info({ tag: "GCP_PUBSUB_CLOSING" });
+    const errors = await safeCloseAll(
+      () => topic.flush(),
+      () => client.close(),
+    );
+    if (errors.length > 0) {
+      f.log.error({ tag: "GCP_PUBSUB_CLOSE_ERRORS", errors });
+    }
   });
 
   function publishToPubSub(
@@ -62,11 +70,18 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
     if (processAfterDelayMs > 0) {
       attrs.processAfterDelayMs = "" + processAfterDelayMs;
     }
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    topic.publishMessage({
-      json: { event, payload },
-      attributes: attrs,
-    });
+    topic
+      .publishMessage({
+        json: { event, payload },
+        attributes: attrs,
+      })
+      .catch((err: unknown) => {
+        f.log.error({
+          tag: "GCP_PUBSUB_PUBLISH_ERROR",
+          err,
+          event,
+        });
+      });
     req?.log.info({
       tag: "EVENT_PUBLISH",
       event,
@@ -87,10 +102,11 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   });
 
   f.decorateRequest("EventBus", {
-    getter() {
+    getter(this: FastifyRequest) {
+      const req = this;
       return {
         publish: (event, payload, processAfterDelayMs) => {
-          publishToPubSub(event, payload, null, processAfterDelayMs ?? 0, this);
+          publishToPubSub(event, payload, null, processAfterDelayMs ?? 0, req);
         },
       };
     },
@@ -111,7 +127,6 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         reply.send("OK");
         return reply;
       }
-      const eventMsg = convert(body);
       req.log.info({
         tag: "PUB_SUB_MSG",
         messageId: body.message.messageId,
@@ -120,50 +135,50 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
         publishTime: body.message.publishTime,
         attempt: body.attempt,
       });
-      options.validateMsg(eventMsg.event, eventMsg.data, req);
-
-      if (noMatchingHandlers(handlerMap, eventMsg)) {
-        // bail-out
-        // service has no event-handlers registered
-        reply.send("OK");
-        return reply;
-      }
-
-      req.log.info({
-        tag: "PUB_SUB_MSG_HANDLE",
-        event: eventMsg,
-      });
-
-      if (
-        eventMsg.processAfterDelayMs > 0 &&
-        Date.now() <
-          eventMsg.publishTime.getTime() + eventMsg.processAfterDelayMs
-      ) {
-        // wait for pub-sub to repush. can't process so early
-        req.log.info({
-          tag: "PUB_SUB_MSG_DELAYED",
-          eventId: eventMsg.id,
-        });
-        reply
-          .status(425)
-          .send({ processAfterDelayMs: eventMsg?.processAfterDelayMs });
-        return reply;
-      }
 
       try {
+        const eventMsg = convert(body);
+        options.validateMsg(eventMsg.event, eventMsg.data, req);
+
+        if (noMatchingHandlers(handlerMap, eventMsg)) {
+          reply.send("OK");
+          return reply;
+        }
+
+        req.log.info({
+          tag: "PUB_SUB_MSG_HANDLE",
+          event: eventMsg,
+        });
+
+        if (
+          eventMsg.processAfterDelayMs > 0 &&
+          Date.now() <
+            eventMsg.publishTime.getTime() + eventMsg.processAfterDelayMs
+        ) {
+          req.log.info({
+            tag: "PUB_SUB_MSG_DELAYED",
+            eventId: eventMsg.id,
+          });
+          reply
+            .status(425)
+            .send({ processAfterDelayMs: eventMsg?.processAfterDelayMs });
+          return reply;
+        }
+
         await selectAndRunHandlers(req, eventMsg, (event, payload, file) =>
-          publishToPubSub(
-            event,
-            payload,
-            file,
-            eventMsg.processAfterDelayMs,
-            req,
-          ),
+          publishToPubSub(event, payload, file, 0, req),
         );
         reply.send("OK");
         return reply;
       } catch (err) {
         if (err instanceof ErrorWithStatus) {
+          if (err.status === 400) {
+            req.log.warn({
+              tag: "GCP_PUBSUB_BAD_MESSAGE",
+              err,
+              messageId: body.message?.messageId,
+            });
+          }
           reply.status(err.status).send(err.message);
         } else {
           reply.status(500).send("ERROR");
@@ -179,7 +194,12 @@ export = fp(plugin, { name: "fp-eventbus-gcp-pubsub" });
 function convert(msg: PubsubMessage): EventMessage {
   const buf = Buffer.from(msg.message.data, "base64");
   const json = buf.toString("utf-8");
-  const obj = JSON.parse(json);
+  let obj: { event: string; payload: any };
+  try {
+    obj = JSON.parse(json);
+  } catch {
+    throw new ErrorWithStatus(400, "Invalid JSON in message body");
+  }
   return {
     id: msg.message.messageId,
     publishTime: new Date(msg.message.publishTime),

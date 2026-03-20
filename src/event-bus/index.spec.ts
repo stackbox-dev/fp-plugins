@@ -11,7 +11,9 @@ describe("EventBus Plugin", () => {
   beforeEach(() => {
     fastify = Fastify({ logger: false });
     mockValidateMsg = jest.fn();
-    mockProcessError = jest.fn().mockReturnValue({ err: new Error("test"), status: 500 });
+    mockProcessError = jest
+      .fn()
+      .mockReturnValue({ err: new Error("test"), status: 500 });
     mockHandler = jest.fn().mockResolvedValue(undefined);
   });
 
@@ -20,7 +22,7 @@ describe("EventBus Plugin", () => {
       await fastify.close();
     } catch (error) {
       // Ignore errors from fastify already being closed
-      if (!error.message.includes('already been closed')) {
+      if (!error.message.includes("already been closed")) {
         throw error;
       }
     }
@@ -30,10 +32,12 @@ describe("EventBus Plugin", () => {
     it("should register with in-process bus type (default)", async () => {
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -56,59 +60,91 @@ describe("EventBus Plugin", () => {
 
     it("should register with gcp-pubsub bus type", async () => {
       process.env.EVENT_TOPIC = "test-topic";
-      
+
       const options: EventBusOptions = {
         busType: "gcp-pubsub",
         topic: "test-topic",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
 
       await fastify.register(EventBusPlugin, options);
       expect(fastify.EventBus).toBeDefined();
-      
+
       delete process.env.EVENT_TOPIC;
     });
 
     it("should register with azure-servicebus bus type", async () => {
       process.env.EVENT_TOPIC = "test-topic";
-      
+
       const options: EventBusOptions = {
         busType: "azure-servicebus",
         namespace: "test-namespace",
         topic: "test-topic",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
 
       await fastify.register(EventBusPlugin, options);
       expect(fastify.EventBus).toBeDefined();
-      
+
       delete process.env.EVENT_TOPIC;
     });
 
-    it("should throw error for azure-servicebus without namespace", async () => {
+    it("should throw error for azure-servicebus without topic", async () => {
       const options: EventBusOptions = {
         busType: "azure-servicebus",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
 
       await expect(fastify.register(EventBusPlugin, options)).rejects.toThrow(
-        "Azure ServiceBus needs the namespace specified"
+        "Azure ServiceBus needs the topic specified",
       );
+    });
+
+    it("should throw error for azure-servicebus without namespace or connection string", async () => {
+      const origConn = process.env.AZURE_SERVICEBUS_CONNECTION_STRING;
+      delete process.env.AZURE_SERVICEBUS_CONNECTION_STRING;
+      try {
+        const options: EventBusOptions = {
+          busType: "azure-servicebus",
+          topic: "test-topic",
+          handlers: [
+            {
+              file: "test.ts",
+              handlers: { testEvent: mockHandler },
+            },
+          ],
+          validateMsg: mockValidateMsg,
+          processError: mockProcessError,
+        };
+
+        await expect(fastify.register(EventBusPlugin, options)).rejects.toThrow(
+          "AZURE_SERVICEBUS_CONNECTION_STRING",
+        );
+      } finally {
+        if (origConn !== undefined)
+          process.env.AZURE_SERVICEBUS_CONNECTION_STRING = origConn;
+      }
     });
   });
 
@@ -116,10 +152,12 @@ describe("EventBus Plugin", () => {
     beforeEach(async () => {
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -131,7 +169,7 @@ describe("EventBus Plugin", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/event-bus/publish/testEvent",
-        payload: { test: "data" }
+        payload: { test: "data" },
       });
 
       expect(response.statusCode).toBe(200);
@@ -142,7 +180,7 @@ describe("EventBus Plugin", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/event-bus/publish/testEvent?stringPayload=test-string",
-        payload: {}
+        payload: {},
       });
 
       expect(response.statusCode).toBe(200);
@@ -153,7 +191,7 @@ describe("EventBus Plugin", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/event-bus/publish/testEvent?integerPayload=123",
-        payload: {}
+        payload: {},
       });
 
       expect(response.statusCode).toBe(200);
@@ -162,13 +200,15 @@ describe("EventBus Plugin", () => {
 
     it("should not register publish route when disabled", async () => {
       const fastifyDisabled = Fastify({ logger: false });
-      
+
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
         disableEventPublishRoute: true,
@@ -179,7 +219,7 @@ describe("EventBus Plugin", () => {
       const response = await fastifyDisabled.inject({
         method: "POST",
         url: "/event-bus/publish/testEvent",
-        payload: { test: "data" }
+        payload: { test: "data" },
       });
 
       expect(response.statusCode).toBe(404);
@@ -191,10 +231,12 @@ describe("EventBus Plugin", () => {
     beforeEach(async () => {
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -242,12 +284,12 @@ describe("EventBus Plugin", () => {
         handlers: [
           {
             file: "handlers1.ts",
-            handlers: { event1: handler1 }
+            handlers: { event1: handler1 },
           },
           {
-            file: "handlers2.ts", 
-            handlers: { event2: handler2 }
-          }
+            file: "handlers2.ts",
+            handlers: { event2: handler2 },
+          },
         ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
@@ -262,10 +304,12 @@ describe("EventBus Plugin", () => {
         busType: "in-process",
         topic: "test-topic",
         namespace: "test-namespace",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -277,10 +321,12 @@ describe("EventBus Plugin", () => {
     it("should handle actionConcurrency option", async () => {
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
         actionConcurrency: 5,

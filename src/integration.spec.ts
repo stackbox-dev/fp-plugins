@@ -2,8 +2,12 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import Fastify from "fastify";
+import {
+  EventBusOptions,
+  EventHandler,
+  EventMessage,
+} from "./event-bus/interfaces";
 import { Plugins } from "./index";
-import { EventBusOptions, EventHandler, EventMessage } from "./event-bus/interfaces";
 
 describe("Plugin Integration Tests", () => {
   let fastify: ReturnType<typeof Fastify>;
@@ -11,7 +15,9 @@ describe("Plugin Integration Tests", () => {
 
   beforeEach(async () => {
     fastify = Fastify({ logger: false });
-    tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "integration-test-"));
+    tempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "integration-test-"),
+    );
   });
 
   afterEach(async () => {
@@ -27,7 +33,9 @@ describe("Plugin Integration Tests", () => {
     beforeEach(() => {
       mockEventHandler = jest.fn().mockResolvedValue(undefined);
       mockValidateMsg = jest.fn();
-      mockProcessError = jest.fn().mockReturnValue({ err: new Error("test"), status: 500 });
+      mockProcessError = jest
+        .fn()
+        .mockReturnValue({ err: new Error("test"), status: 500 });
     });
 
     it("should register both plugins successfully", async () => {
@@ -38,10 +46,12 @@ describe("Plugin Integration Tests", () => {
       // Register EventBus
       const eventBusOptions: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "integration.ts",
-          handlers: { fileProcessed: mockEventHandler }
-        }],
+        handlers: [
+          {
+            file: "integration.ts",
+            handlers: { fileProcessed: mockEventHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -57,10 +67,12 @@ describe("Plugin Integration Tests", () => {
 
       const eventBusOptions: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "integration.ts",
-          handlers: { fileProcessed: mockEventHandler }
-        }],
+        handlers: [
+          {
+            file: "integration.ts",
+            handlers: { fileProcessed: mockEventHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -68,7 +80,7 @@ describe("Plugin Integration Tests", () => {
 
       expect(fastify.FileStore).toBeDefined();
       expect(fastify.EventBus).toBeDefined();
-      
+
       // Basic functionality test without complex interactions
       await fastify.FileStore.save("test.txt", "text/plain", "test content");
       const exists = await fastify.FileStore.exists("test.txt");
@@ -81,17 +93,23 @@ describe("Plugin Integration Tests", () => {
 
       const eventBusOptions: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "integration.ts",
-          handlers: { testEvent: mockEventHandler }
-        }],
+        handlers: [
+          {
+            file: "integration.ts",
+            handlers: { testEvent: mockEventHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
       await fastify.register(Plugins.EventBus, eventBusOptions);
 
       // Test file operations work
-      await fastify.FileStore.save("test-file.txt", "text/plain", "test content");
+      await fastify.FileStore.save(
+        "test-file.txt",
+        "text/plain",
+        "test content",
+      );
       expect(await fastify.FileStore.exists("test-file.txt")).toBe(true);
 
       // Test that EventBus is available and functional
@@ -107,7 +125,9 @@ describe("Plugin Integration Tests", () => {
         busType: "in-process",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
       await fastify.register(Plugins.EventBus, eventBusOptions);
 
@@ -126,8 +146,10 @@ describe("Plugin Integration Tests", () => {
         // Register same plugins on different instances
         process.env.LOCAL_STORAGE_DIR = tempDir;
         await fastify1.register(Plugins.FileStore, { type: "local" });
-        
-        const tempDir2 = await fs.promises.mkdtemp(path.join(os.tmpdir(), "integration-test-2-"));
+
+        const tempDir2 = await fs.promises.mkdtemp(
+          path.join(os.tmpdir(), "integration-test-2-"),
+        );
         process.env.LOCAL_STORAGE_DIR = tempDir2;
         await fastify2.register(Plugins.FileStore, { type: "local" });
 
@@ -135,8 +157,16 @@ describe("Plugin Integration Tests", () => {
         expect((fastify2 as any).FileStore).toBeDefined();
 
         // They should operate independently
-        await (fastify1 as any).FileStore.save("file1.txt", "text/plain", "content1");
-        await (fastify2 as any).FileStore.save("file2.txt", "text/plain", "content2");
+        await (fastify1 as any).FileStore.save(
+          "file1.txt",
+          "text/plain",
+          "content1",
+        );
+        await (fastify2 as any).FileStore.save(
+          "file2.txt",
+          "text/plain",
+          "content2",
+        );
 
         // Just test that both instances have independent FileStore decorations
         expect((fastify1 as any).FileStore).toBeDefined();
@@ -154,10 +184,10 @@ describe("Plugin Integration Tests", () => {
     it("should handle FileStore errors gracefully", async () => {
       // Test that invalid configurations are caught during registration
       process.env.LOCAL_STORAGE_DIR = "/invalid/path/that/does/not/exist";
-      
+
       // Plugin registration should fail with invalid path
       await expect(
-        fastify.register(Plugins.FileStore, { type: "local" })
+        fastify.register(Plugins.FileStore, { type: "local" }),
       ).rejects.toThrow();
     });
 
@@ -168,12 +198,16 @@ describe("Plugin Integration Tests", () => {
 
       const eventBusOptions: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "integration.ts",
-          handlers: { testEvent: jest.fn() }
-        }],
+        handlers: [
+          {
+            file: "integration.ts",
+            handlers: { testEvent: jest.fn() },
+          },
+        ],
         validateMsg: mockValidateMsg,
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await fastify.register(Plugins.EventBus, eventBusOptions);
@@ -192,7 +226,7 @@ describe("Plugin Integration Tests", () => {
       const promises = [];
       for (let i = 0; i < 100; i++) {
         promises.push(
-          fastify.FileStore.save(`file${i}.txt`, "text/plain", `content ${i}`)
+          fastify.FileStore.save(`file${i}.txt`, "text/plain", `content ${i}`),
         );
       }
 
@@ -210,12 +244,16 @@ describe("Plugin Integration Tests", () => {
 
       const eventBusOptions: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "integration.ts",
-          handlers: { highVolumeEvent: eventHandler }
-        }],
+        handlers: [
+          {
+            file: "integration.ts",
+            handlers: { highVolumeEvent: eventHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
 
       await fastify.register(Plugins.EventBus, eventBusOptions);
@@ -233,7 +271,9 @@ describe("Plugin Integration Tests", () => {
         busType: "in-process",
         handlers: [],
         validateMsg: jest.fn(),
-        processError: jest.fn().mockReturnValue({ err: new Error("test"), status: 500 }),
+        processError: jest
+          .fn()
+          .mockReturnValue({ err: new Error("test"), status: 500 }),
       };
       await fastify.register(Plugins.EventBus, eventBusOptions);
 

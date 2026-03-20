@@ -1,6 +1,6 @@
 import Fastify from "fastify";
-import LocalEventBusPlugin from "./local";
 import { EventBusOptions, EventHandler, EventMessage } from "./interfaces";
+import LocalEventBusPlugin from "./local";
 
 describe("Local EventBus Plugin", () => {
   let mockValidateMsg: jest.Mock;
@@ -9,7 +9,9 @@ describe("Local EventBus Plugin", () => {
 
   beforeEach(() => {
     mockValidateMsg = jest.fn();
-    mockProcessError = jest.fn().mockReturnValue({ err: new Error("test"), status: 500 });
+    mockProcessError = jest
+      .fn()
+      .mockReturnValue({ err: new Error("test"), status: 500 });
     mockHandler = jest.fn().mockResolvedValue(undefined);
   });
 
@@ -18,19 +20,21 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
 
       await fastify.register(LocalEventBusPlugin, options);
-      
+
       expect(fastify.EventBus).toBeDefined();
       expect(typeof fastify.EventBus.publish).toBe("function");
-      
+
       await fastify.close();
     });
 
@@ -38,10 +42,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -50,7 +56,7 @@ describe("Local EventBus Plugin", () => {
 
       // Test fastify instance decoration
       expect(fastify.EventBus).toBeDefined();
-      
+
       // Test request decoration through a route
       fastify.get("/test", async (request) => {
         expect(request.EventBus).toBeDefined();
@@ -60,11 +66,11 @@ describe("Local EventBus Plugin", () => {
 
       const response = await fastify.inject({
         method: "GET",
-        url: "/test"
+        url: "/test",
       });
 
       expect(response.statusCode).toBe(200);
-      
+
       await fastify.close();
     });
   });
@@ -74,10 +80,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -89,8 +97,12 @@ describe("Local EventBus Plugin", () => {
         fastify.EventBus.publish("testEvent", { test: "data" });
       }).not.toThrow();
 
-      expect(mockValidateMsg).toHaveBeenCalledWith("testEvent", { test: "data" }, undefined);
-      
+      expect(mockValidateMsg).toHaveBeenCalledWith(
+        "testEvent",
+        { test: "data" },
+        undefined,
+      );
+
       // Don't close fastify to avoid flush hook issues
     });
 
@@ -98,10 +110,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -112,8 +126,12 @@ describe("Local EventBus Plugin", () => {
         fastify.EventBus.publish("testEvent", { test: "data" }, 1000);
       }).not.toThrow();
 
-      expect(mockValidateMsg).toHaveBeenCalledWith("testEvent", { test: "data" }, undefined);
-      
+      expect(mockValidateMsg).toHaveBeenCalledWith(
+        "testEvent",
+        { test: "data" },
+        undefined,
+      );
+
       // Don't close fastify to avoid flush hook issues
     });
   });
@@ -123,10 +141,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -145,13 +165,17 @@ describe("Local EventBus Plugin", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/local-servicebus/process-message",
-        payload: testMessage
+        payload: testMessage,
       });
 
       expect(response.statusCode).toBe(200);
       expect(response.body).toBe("OK");
-      expect(mockValidateMsg).toHaveBeenCalledWith("testEvent", { test: "data" }, expect.any(Object));
-      
+      expect(mockValidateMsg).toHaveBeenCalledWith(
+        "testEvent",
+        { test: "data" },
+        expect.any(Object),
+      );
+
       await fastify.close();
     });
 
@@ -159,10 +183,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -171,13 +197,13 @@ describe("Local EventBus Plugin", () => {
 
       const response = await fastify.inject({
         method: "POST",
-        url: "/local-servicebus/process-message"
+        url: "/local-servicebus/process-message",
         // No payload
       });
 
       expect(response.statusCode).toBe(200);
       expect(response.body).toBe("NO_MESSAGE");
-      
+
       await fastify.close();
     });
 
@@ -185,10 +211,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -207,12 +235,12 @@ describe("Local EventBus Plugin", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/local-servicebus/process-message",
-        payload: testMessage
+        payload: testMessage,
       });
 
       expect(response.statusCode).toBe(200);
       expect(response.body).toBe("BAIL_OUT_NO_MATCHING_HANDLERS");
-      
+
       await fastify.close();
     });
 
@@ -220,10 +248,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -242,7 +272,7 @@ describe("Local EventBus Plugin", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/local-servicebus/process-message",
-        payload: testMessage
+        payload: testMessage,
       });
 
       expect(response.statusCode).toBe(200);
@@ -255,9 +285,9 @@ describe("Local EventBus Plugin", () => {
           attributes: {},
           processAfterDelayMs: 0,
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
-      
+
       await fastify.close();
     });
 
@@ -265,10 +295,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "specific-file.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "specific-file.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -287,12 +319,12 @@ describe("Local EventBus Plugin", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/local-servicebus/process-message",
-        payload: testMessage
+        payload: testMessage,
       });
 
       expect(response.statusCode).toBe(200);
       expect(response.body).toBe("OK");
-      
+
       await fastify.close();
     });
   });
@@ -306,10 +338,12 @@ describe("Local EventBus Plugin", () => {
 
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsgFail,
         processError: mockProcessError,
       };
@@ -319,20 +353,24 @@ describe("Local EventBus Plugin", () => {
       expect(() => {
         fastify.EventBus.publish("testEvent", { invalid: "data" });
       }).toThrow("Validation failed");
-      
+
       await fastify.close();
     });
 
     it("should handle handler execution errors gracefully", async () => {
       const fastify = Fastify({ logger: false });
-      const failingHandler: EventHandler = jest.fn().mockRejectedValue(new Error("Handler failed"));
+      const failingHandler: EventHandler = jest
+        .fn()
+        .mockRejectedValue(new Error("Handler failed"));
 
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { failingEvent: failingHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { failingEvent: failingHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -352,12 +390,12 @@ describe("Local EventBus Plugin", () => {
       const response = await fastify.inject({
         method: "POST",
         url: "/local-servicebus/process-message",
-        payload: testMessage
+        payload: testMessage,
       });
 
       expect(response.statusCode).toBe(200);
       expect(failingHandler).toHaveBeenCalled();
-      
+
       await fastify.close();
     });
   });
@@ -367,10 +405,12 @@ describe("Local EventBus Plugin", () => {
       const fastify = Fastify({ logger: false });
       const options: EventBusOptions = {
         busType: "in-process",
-        handlers: [{
-          file: "test.ts",
-          handlers: { testEvent: mockHandler }
-        }],
+        handlers: [
+          {
+            file: "test.ts",
+            handlers: { testEvent: mockHandler },
+          },
+        ],
         validateMsg: mockValidateMsg,
         processError: mockProcessError,
       };
@@ -383,8 +423,12 @@ describe("Local EventBus Plugin", () => {
       }).not.toThrow();
 
       // Verify validation was called
-      expect(mockValidateMsg).toHaveBeenCalledWith("testEvent", { test: "basic flow" }, undefined);
-      
+      expect(mockValidateMsg).toHaveBeenCalledWith(
+        "testEvent",
+        { test: "basic flow" },
+        undefined,
+      );
+
       // Don't close to avoid flush hook issues
     });
   });

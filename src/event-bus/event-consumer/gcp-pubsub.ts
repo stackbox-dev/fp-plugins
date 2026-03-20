@@ -1,6 +1,7 @@
 import * as timers from "node:timers/promises";
 import { Message, PubSub, Subscription } from "@google-cloud/pubsub";
 import { FastifyInstance } from "fastify";
+import { safeCloseAll } from "../utils";
 import { EventConsumerBuilder } from "./interface";
 import { randomDelay } from "./utils";
 
@@ -40,8 +41,13 @@ export const GcpPubSubConsumerBuilder: EventConsumerBuilder = async (
 
   return {
     close: async () => {
-      await runner.close();
-      await pubsub.close();
+      const errors = await safeCloseAll(
+        () => runner.close(),
+        () => pubsub.close(),
+      );
+      if (errors.length > 0) {
+        instance.log.error({ tag: "GCP_PUBSUB_CLOSE_ERRORS", errors });
+      }
     },
   };
 };
@@ -54,7 +60,7 @@ class Runner {
     public readonly instance: FastifyInstance,
     public readonly pubsub: PubSub,
     public readonly subName: string,
-  ) { }
+  ) {}
 
   async close(): Promise<void> {
     this.ctrl.abort();
@@ -87,9 +93,13 @@ class Runner {
       this.subscription?.removeAllListeners();
       this.subscription?.close();
       this.instance.log.warn("waiting for 10 seconds before reconnecting...");
-      this.timerRef = setTimeout(() => {
-        this.init();
-      }, 10000); // retrying after 10 seconds
+      if (!this.ctrl.signal.aborted) {
+        this.timerRef = setTimeout(() => {
+          if (!this.ctrl.signal.aborted) {
+            this.init();
+          }
+        }, 10000); // retrying after 10 seconds
+      }
     });
   }
 
@@ -121,13 +131,28 @@ class Runner {
         msg.ack();
       } else if (resp.statusCode === 429 || resp.statusCode === 409) {
         // rate-limited or lock-conflict
-        await randomDelay();
+        await randomDelay(undefined, this.ctrl.signal);
         msg.nack();
       } else if (resp.statusCode === 425 && attempt < 2) {
-        const parsed = JSON.parse(resp.body);
-        const processAfterDelayMs = parsed?.processAfterDelayMs ?? 0;
+        let processAfterDelayMs = 0;
+        try {
+          const parsed = JSON.parse(resp.body);
+          processAfterDelayMs = parsed?.processAfterDelayMs ?? 0;
+        } catch {
+          // non-JSON 425 response — fall through with 0 delay
+        }
         if (processAfterDelayMs > 0) {
-          await timers.setTimeout(processAfterDelayMs);
+          try {
+            await timers.setTimeout(processAfterDelayMs, undefined, {
+              signal: this.ctrl.signal,
+            });
+          } catch (err) {
+            if ((err as Error).name === "AbortError") {
+              msg.nack();
+              return;
+            }
+            throw err;
+          }
         }
         await this.processMsg(msg, attempt + 1);
       } else {

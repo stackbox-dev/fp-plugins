@@ -2,7 +2,12 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { Registry } from "prom-client";
 
 export interface EventBusOptions {
-  busType: "rabbitmq" | "gcp-pubsub" | "azure-servicebus" | "in-process";
+  busType:
+    | "rabbitmq"
+    | "gcp-pubsub"
+    | "azure-servicebus"
+    | "nats-jetstream"
+    | "in-process";
   topic?: string;
   namespace?: string;
   handlers: {

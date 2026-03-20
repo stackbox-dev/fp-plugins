@@ -12,6 +12,7 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
   options,
 ) {
   const handlerMap = getHandlerMap(options);
+  f.decorate("_hasEventHandlers", handlerMap.size > 0);
 
   const bus: EventBus = {
     publish(event, payload, processAfterDelayMs) {

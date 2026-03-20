@@ -59,7 +59,7 @@ const plugin: FastifyPluginAsync<{
 };
 
 class LocalFileStore implements FileStore {
-  constructor(public dir: string) { }
+  constructor(public dir: string) {}
   async exists(filepath: string): Promise<boolean> {
     const p = path.join(this.dir, filepath);
     return !!(await fs.promises.stat(p));
@@ -311,7 +311,7 @@ class S3FileStore implements FileStore {
   constructor(
     private client: S3.S3Client,
     private bucket: string,
-  ) { }
+  ) {}
 
   async exists(filepath: string): Promise<boolean> {
     try {

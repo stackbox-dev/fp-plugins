@@ -4,6 +4,7 @@ import {
   ensureRabbitMqExchangesAndQueues,
   getServicePrefix,
 } from "../rabbitmq-utils";
+import { safeCloseAll } from "../utils";
 import { EventConsumerBuilder } from "./interface";
 import { randomDelay } from "./utils";
 
@@ -39,7 +40,9 @@ export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
 ) => {
   // Skip consumer creation if no handlers are registered
   if ((instance as any)._hasEventHandlers === false) {
-    instance.log.info("No event handlers registered, skipping RabbitMQ consumer");
+    instance.log.info(
+      "No event handlers registered, skipping RabbitMQ consumer",
+    );
     return {
       close: async () => {},
     };
@@ -52,6 +55,9 @@ export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
     throw new Error("RabbitMq requires K_SERVICE");
   }
   const connection = new Connection(process.env.RABBITMQ_URL);
+  connection.on("error", (err) => {
+    instance.log.error({ tag: "RABBITMQ_CONSUMER_CONNECTION_ERROR", err });
+  });
   await ensureRabbitMqExchangesAndQueues(connection, process.env.K_SERVICE);
 
   const ctrl = new AbortController();
@@ -92,6 +98,9 @@ export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
           method: "POST",
           url: "/rabbitmq/process-message",
           payload,
+          headers: {
+            "content-type": "application/json",
+          },
         });
         if (resp.statusCode >= 200 && resp.statusCode < 300) {
           return ConsumerStatus.ACK;
@@ -130,7 +139,7 @@ export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
           return ConsumerStatus.DROP;
         } else if (resp.statusCode === 425) {
           // delayed message, use local sleep since delay may exceed DLX TTL
-          await randomDelay();
+          await randomDelay(undefined, ctrl.signal);
           return ConsumerStatus.REQUEUE;
         } else if (resp.statusCode >= 500 && resp.statusCode < 600) {
           // transient server error, use dead-letter retry
@@ -162,7 +171,8 @@ export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
               headers: {
                 ...msg.headers,
                 "x-original-queue": `${prefix}.queue.${service}`,
-                "x-final-error": err instanceof Error ? err.message : String(err),
+                "x-final-error":
+                  err instanceof Error ? err.message : String(err),
                 "x-final-retry-count": retryCount,
               },
             },
@@ -184,9 +194,14 @@ export const RabbitMqServiceBusConsumerBuilder: EventConsumerBuilder = async (
   return {
     close: async () => {
       ctrl.abort();
-      await sub.close();
-      await dlqPublisher.close();
-      await connection.close();
+      const errors = await safeCloseAll(
+        () => sub.close(),
+        () => dlqPublisher.close(),
+        () => connection.close(),
+      );
+      if (errors.length > 0) {
+        instance.log.error({ tag: "RABBITMQ_CONSUMER_CLOSE_ERRORS", errors });
+      }
     },
   };
 };

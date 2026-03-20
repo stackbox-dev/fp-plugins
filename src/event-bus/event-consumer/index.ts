@@ -1,9 +1,10 @@
 import { FastifyInstance } from "fastify";
+import { EventBusOptions } from "../interfaces";
 import { AzureServiceBusConsumerBuilder } from "./azure-servicebus";
 import { GcpPubSubConsumerBuilder } from "./gcp-pubsub";
 import { EventConsumer } from "./interface";
+import { NatsJetStreamConsumerBuilder } from "./nats-jetstream";
 import { RabbitMqServiceBusConsumerBuilder } from "./rabbitmq";
-import { EventBusOptions } from "../interfaces";
 
 export function CreateEventConsumer(
   instance: FastifyInstance,
@@ -16,6 +17,8 @@ export function CreateEventConsumer(
       return AzureServiceBusConsumerBuilder(instance);
     case "rabbitmq":
       return RabbitMqServiceBusConsumerBuilder(instance);
+    case "nats-jetstream":
+      return NatsJetStreamConsumerBuilder(instance);
     default:
       return Promise.resolve({
         close: async () => {

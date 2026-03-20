@@ -12,17 +12,16 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
       await f.register(require("./gcp-pubsub"), options);
       break;
     case "azure-servicebus":
-      if (!options.namespace) {
-        throw new Error(
-          "Azure ServiceBus needs the namespace specified. Use EVENT_NAMESPACE env var",
-        );
-      }
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       await f.register(require("./azure-servicebus"), options);
       break;
     case "rabbitmq":
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       await f.register(require("./rabbitmq"), options);
+      break;
+    case "nats-jetstream":
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      await f.register(require("./nats-jetstream"), options);
       break;
     default:
       // eslint-disable-next-line @typescript-eslint/no-require-imports

@@ -1,4 +1,11 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Workaround: @nats-io/jetstream .d.ts files use subpath imports
+    // (@nats-io/nats-core/internal) that require moduleResolution "node16"+,
+    // and ErrorOptions which requires lib "ES2022"+.
+    // Remove when this project upgrades moduleResolution and lib target.
+    "skipLibCheck": true
+  },
   "exclude": ["**/*.spec.ts"]
 }

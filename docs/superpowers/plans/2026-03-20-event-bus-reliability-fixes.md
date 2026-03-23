@@ -9,6 +9,7 @@
 **Tech Stack:** TypeScript, Fastify, rabbitmq-client, @azure/service-bus, @google-cloud/pubsub, Jest, testcontainers
 
 **Constraints:**
+
 - `EventBus.publish()` signature stays `void` — no breaking API changes
 - `mnemonist` `Queue` import can be removed from files that no longer need it
 - All existing tests must continue to pass
@@ -17,23 +18,24 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `src/event-bus/utils.ts` | **Create** | Shared `safeAll()` utility |
-| `src/event-bus/utils.spec.ts` | **Create** | Unit tests for `safeAll()` |
-| `src/event-bus/rabbitmq.ts` | **Modify** | Remove flush loop, publish directly, add connection error handler, use `safeAll` in shutdown |
-| `src/event-bus/azure-servicebus.ts` | **Modify** | Remove flush loop, publish directly, guard init, use `safeAll` in shutdown |
-| `src/event-bus/event-consumer/utils.ts` | **Modify** | Add abort signal support to delay functions |
-| `src/event-bus/event-consumer/rabbitmq.ts` | **Modify** | Add connection error handler, use `safeAll` in shutdown |
-| `src/event-bus/event-consumer/azure-servicebus.ts` | **Modify** | Fix shutdown-during-receive, distinct error tags, safe `abandonMessage`, guard init |
-| `src/event-bus/event-consumer/gcp-pubsub.ts` | **Modify** | Abort-safe reconnect timer, pass abort signal to delay calls |
-| `src/event-bus/rabbitmq.spec.ts` | **Modify** | Update tests for direct publish (no more flush wait) |
+| File                                               | Action     | Responsibility                                                                               |
+| -------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------- |
+| `src/event-bus/utils.ts`                           | **Create** | Shared `safeAll()` utility                                                                   |
+| `src/event-bus/utils.spec.ts`                      | **Create** | Unit tests for `safeAll()`                                                                   |
+| `src/event-bus/rabbitmq.ts`                        | **Modify** | Remove flush loop, publish directly, add connection error handler, use `safeAll` in shutdown |
+| `src/event-bus/azure-servicebus.ts`                | **Modify** | Remove flush loop, publish directly, guard init, use `safeAll` in shutdown                   |
+| `src/event-bus/event-consumer/utils.ts`            | **Modify** | Add abort signal support to delay functions                                                  |
+| `src/event-bus/event-consumer/rabbitmq.ts`         | **Modify** | Add connection error handler, use `safeAll` in shutdown                                      |
+| `src/event-bus/event-consumer/azure-servicebus.ts` | **Modify** | Fix shutdown-during-receive, distinct error tags, safe `abandonMessage`, guard init          |
+| `src/event-bus/event-consumer/gcp-pubsub.ts`       | **Modify** | Abort-safe reconnect timer, pass abort signal to delay calls                                 |
+| `src/event-bus/rabbitmq.spec.ts`                   | **Modify** | Update tests for direct publish (no more flush wait)                                         |
 
 ---
 
 ### Task 1: Create shared `safeAll` utility
 
 **Files:**
+
 - Create: `src/event-bus/utils.ts`
 - Create: `src/event-bus/utils.spec.ts`
 
@@ -47,9 +49,17 @@ describe("safeAll", () => {
   it("should run all functions even if earlier ones throw", async () => {
     const calls: number[] = [];
     const errors = await safeAll(
-      async () => { calls.push(1); throw new Error("fail-1"); },
-      async () => { calls.push(2); },
-      async () => { calls.push(3); throw new Error("fail-3"); },
+      async () => {
+        calls.push(1);
+        throw new Error("fail-1");
+      },
+      async () => {
+        calls.push(2);
+      },
+      async () => {
+        calls.push(3);
+        throw new Error("fail-3");
+      },
     );
     expect(calls).toEqual([1, 2, 3]);
     expect(errors).toHaveLength(2);
@@ -68,9 +78,16 @@ describe("safeAll", () => {
   it("should handle sync functions", async () => {
     const calls: number[] = [];
     const errors = await safeAll(
-      () => { calls.push(1); },
-      () => { calls.push(2); throw new Error("sync-fail"); },
-      () => { calls.push(3); },
+      () => {
+        calls.push(1);
+      },
+      () => {
+        calls.push(2);
+        throw new Error("sync-fail");
+      },
+      () => {
+        calls.push(3);
+      },
     );
     expect(calls).toEqual([1, 2, 3]);
     expect(errors).toHaveLength(1);
@@ -131,6 +148,7 @@ git commit -m "feat(event-bus): add safeAll utility for safe sequential cleanup"
 ### Task 2: Add abort signal support to consumer delay utilities
 
 **Files:**
+
 - Modify: `src/event-bus/event-consumer/utils.ts`
 
 Currently `exponentialDelay` and `randomDelay` use `timers.setTimeout` without an abort signal. During shutdown, these block until the delay completes. Add an optional `signal` parameter.
@@ -193,6 +211,7 @@ git commit -m "feat(event-bus): add abort signal support to delay utilities"
 ### Task 3: Remove flush loop from RabbitMQ publisher — publish directly
 
 **Files:**
+
 - Modify: `src/event-bus/rabbitmq.ts`
 
 This is the core change. Remove `Queue`, `MessageWithAttempts`, `createMessageFlusher`, `flushBatch` — replace with direct publish. The `publish()` method stays sync (fire-and-forget: the async broker call runs but errors are logged, not propagated).
@@ -200,6 +219,7 @@ This is the core change. Remove `Queue`, `MessageWithAttempts`, `createMessageFl
 - [ ] **Step 1: Rewrite `rabbitmq.ts`**
 
 Replace the entire file content. Key changes:
+
 1. Remove `mnemonist` import, `MessageWithAttempts` interface, `createMessageFlusher`, `flushBatch`
 2. `publishToExchange` now calls `publisher.send(...)` directly (fire-and-forget with `.catch()` for error logging)
 3. Add `connection.on("error", ...)` handler to prevent unhandled ECONNRESET crashes
@@ -469,6 +489,7 @@ crashes on broker restart, and uses safeAll for shutdown cleanup."
 ### Task 4: Remove flush loop from Azure ServiceBus publisher — publish directly
 
 **Files:**
+
 - Modify: `src/event-bus/azure-servicebus.ts`
 
 Same treatment as RabbitMQ. Remove `Queue`, `MessageWithAttempts`, `createMessageFlusher`, the `setInterval` loop. Publish directly with fire-and-forget.
@@ -476,6 +497,7 @@ Same treatment as RabbitMQ. Remove `Queue`, `MessageWithAttempts`, `createMessag
 - [ ] **Step 1: Rewrite `azure-servicebus.ts`**
 
 Key changes:
+
 1. Remove `mnemonist` import, `MessageWithAttempts`, `createMessageFlusher`
 2. Create the sender **after** all validation (guard init failure resource leak)
 3. If sender creation fails, close the client
@@ -618,7 +640,13 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
     getter() {
       return {
         publish: (event, payload, processAfterDelayMs) => {
-          publishToServiceBus(event, payload, null, processAfterDelayMs ?? 0, this);
+          publishToServiceBus(
+            event,
+            payload,
+            null,
+            processAfterDelayMs ?? 0,
+            this,
+          );
         },
       };
     },
@@ -669,7 +697,13 @@ const plugin: FastifyPluginAsync<EventBusOptions> = async function (
 
       try {
         await selectAndRunHandlers(req, msg, (event, payload, file) =>
-          publishToServiceBus(event, payload, file, msg.processAfterDelayMs, req),
+          publishToServiceBus(
+            event,
+            payload,
+            file,
+            msg.processAfterDelayMs,
+            req,
+          ),
         );
         reply.send("OK");
         return reply;
@@ -725,9 +759,11 @@ for shutdown cleanup."
 ### Task 5: Fix RabbitMQ consumer — connection error handler + safeAll shutdown
 
 **Files:**
+
 - Modify: `src/event-bus/event-consumer/rabbitmq.ts`
 
 Two fixes:
+
 1. The consumer creates its own `Connection` but never attaches an error handler. An `ECONNRESET` during broker restart will crash the process.
 2. The `close()` method does sequential awaits without error protection — if `sub.close()` throws, `dlqPublisher` and `connection` are leaked.
 
@@ -736,14 +772,15 @@ Two fixes:
 In `src/event-bus/event-consumer/rabbitmq.ts`, after line 54 (`const connection = new Connection(process.env.RABBITMQ_URL);`), add:
 
 ```ts
-  connection.on("error", (err) => {
-    instance.log.error({ tag: "RABBITMQ_CONSUMER_CONNECTION_ERROR", err });
-  });
+connection.on("error", (err) => {
+  instance.log.error({ tag: "RABBITMQ_CONSUMER_CONNECTION_ERROR", err });
+});
 ```
 
 - [ ] **Step 2: Add `safeAll` import and update `close()` method**
 
 Add import at top of file:
+
 ```ts
 import { safeAll } from "../utils";
 ```
@@ -793,9 +830,11 @@ git commit -m "fix(event-bus): add RabbitMQ consumer connection error handler + 
 ### Task 6: Fix Azure ServiceBus consumer — shutdown safety, error tags, init guard
 
 **Files:**
+
 - Modify: `src/event-bus/event-consumer/azure-servicebus.ts`
 
 Three fixes:
+
 1. Don't call `receiver.abandonMessage(msg)` during shutdown — receiver may already be closing
 2. Wrap `abandonMessage` calls in try/catch — they can throw if the lock expired
 3. Distinguish `MSG_PROCESS_ERROR` from `TRANSPORT_ERROR`
@@ -808,9 +847,9 @@ Three fixes:
 ```ts
 import * as AzureIden from "@azure/identity";
 import { RetryMode, ServiceBusClient } from "@azure/service-bus";
+import { safeAll } from "../utils";
 import { EventConsumerBuilder } from "./interface";
 import { exponentialDelay, randomDelay } from "./utils";
-import { safeAll } from "../utils";
 
 export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
   instance,
@@ -965,7 +1004,7 @@ export const AzureServiceBusConsumerBuilder: EventConsumerBuilder = async (
   );
   instance.log.info(
     "Attached to Azure ServiceBus Subscription=" +
-    process.env.EVENT_SUBSCRIPTION,
+      process.env.EVENT_SUBSCRIPTION,
   );
   return {
     close: async () => {
@@ -1009,9 +1048,11 @@ git commit -m "fix(event-bus): fix Azure ServiceBus consumer shutdown and error 
 ### Task 7: Fix GCP Pub/Sub consumer — abort-safe reconnect, abort-aware delays
 
 **Files:**
+
 - Modify: `src/event-bus/event-consumer/gcp-pubsub.ts`
 
 Three fixes:
+
 1. The reconnect timer's `setTimeout` callback should check abort signal before calling `init()` to prevent a race with `close()`
 2. The `randomDelay()` call on 429/409 responses should pass the abort signal (otherwise blocks shutdown up to 10s)
 3. The `timers.setTimeout(processAfterDelayMs)` for delayed messages should be abort-aware
@@ -1022,19 +1063,21 @@ Three fixes:
 In `src/event-bus/event-consumer/gcp-pubsub.ts`, in the `init()` method's error handler (around line 90-93), the reconnect `setTimeout` callback should check `ctrl.signal.aborted` before calling `this.init()`:
 
 Replace:
+
 ```ts
-      this.timerRef = setTimeout(() => {
-        this.init();
-      }, 10000);
+this.timerRef = setTimeout(() => {
+  this.init();
+}, 10000);
 ```
 
 With:
+
 ```ts
-      this.timerRef = setTimeout(() => {
-        if (!this.ctrl.signal.aborted) {
-          this.init();
-        }
-      }, 10000);
+this.timerRef = setTimeout(() => {
+  if (!this.ctrl.signal.aborted) {
+    this.init();
+  }
+}, 10000);
 ```
 
 - [ ] **Step 2: Pass abort signal to delay calls in `processMsg`**
@@ -1042,6 +1085,7 @@ With:
 In the `processMsg` method, update the `randomDelay` call (around line 124) and the delayed message sleep (around line 130):
 
 Replace:
+
 ```ts
       } else if (resp.statusCode === 429 || resp.statusCode === 409) {
         // rate-limited or lock-conflict
@@ -1056,6 +1100,7 @@ Replace:
 ```
 
 With:
+
 ```ts
       } else if (resp.statusCode === 429 || resp.statusCode === 409) {
         // rate-limited or lock-conflict
@@ -1080,6 +1125,7 @@ With:
 - [ ] **Step 3: Use `safeAll` for close**
 
 Add import at the top:
+
 ```ts
 import { safeAll } from "../utils";
 ```
@@ -1087,28 +1133,30 @@ import { safeAll } from "../utils";
 In the factory function's returned `close` method, use `safeAll`:
 
 Replace:
+
 ```ts
-  return {
-    close: async () => {
-      await runner.close();
-      await pubsub.close();
-    },
-  };
+return {
+  close: async () => {
+    await runner.close();
+    await pubsub.close();
+  },
+};
 ```
 
 With:
+
 ```ts
-  return {
-    close: async () => {
-      const errors = await safeAll(
-        () => runner.close(),
-        () => pubsub.close(),
-      );
-      if (errors.length > 0) {
-        instance.log.error({ tag: "GCP_PUBSUB_CLOSE_ERRORS", errors });
-      }
-    },
-  };
+return {
+  close: async () => {
+    const errors = await safeAll(
+      () => runner.close(),
+      () => pubsub.close(),
+    );
+    if (errors.length > 0) {
+      instance.log.error({ tag: "GCP_PUBSUB_CLOSE_ERRORS", errors });
+    }
+  },
+};
 ```
 
 - [ ] **Step 4: Run tests**
@@ -1132,6 +1180,7 @@ git commit -m "fix(event-bus): abort-safe reconnect and delays for GCP Pub/Sub c
 ### Task 8: Update RabbitMQ integration tests
 
 **Files:**
+
 - Modify: `src/event-bus/rabbitmq.spec.ts`
 
 The existing test `"should publish messages to RabbitMQ"` waits 100ms for the flush interval. With direct publish, this still works (the `setTimeout(100)` just adds safety margin), but we should verify the test passes reliably and potentially reduce the wait time.
@@ -1189,15 +1238,15 @@ Expected: No matches in `rabbitmq.ts` or `azure-servicebus.ts`. May still appear
 
 ## Summary of Changes
 
-| File | Lines Removed (approx) | Lines Added (approx) | What Changed |
-|------|----------------------|---------------------|-------------|
-| `src/event-bus/utils.ts` | 0 | 15 | New `safeAll` utility |
-| `src/event-bus/utils.spec.ts` | 0 | 40 | Tests for `safeAll` |
-| `src/event-bus/rabbitmq.ts` | ~150 | ~100 | Remove flush loop, direct publish, connection error handler, safeAll shutdown |
-| `src/event-bus/azure-servicebus.ts` | ~100 | ~70 | Remove flush loop, direct publish, init guard, safeAll shutdown |
-| `src/event-bus/event-consumer/utils.ts` | 0 | ~10 | Abort signal support on delay functions |
-| `src/event-bus/event-consumer/rabbitmq.ts` | ~5 | ~15 | Connection error handler, safeAll shutdown |
-| `src/event-bus/event-consumer/azure-servicebus.ts` | ~30 | ~60 | Shutdown safety, error tags, init guard, safeAll |
-| `src/event-bus/event-consumer/gcp-pubsub.ts` | ~5 | ~20 | Abort-safe reconnect, abort-aware delays, safeAll close |
+| File                                               | Lines Removed (approx) | Lines Added (approx) | What Changed                                                                  |
+| -------------------------------------------------- | ---------------------- | -------------------- | ----------------------------------------------------------------------------- |
+| `src/event-bus/utils.ts`                           | 0                      | 15                   | New `safeAll` utility                                                         |
+| `src/event-bus/utils.spec.ts`                      | 0                      | 40                   | Tests for `safeAll`                                                           |
+| `src/event-bus/rabbitmq.ts`                        | ~150                   | ~100                 | Remove flush loop, direct publish, connection error handler, safeAll shutdown |
+| `src/event-bus/azure-servicebus.ts`                | ~100                   | ~70                  | Remove flush loop, direct publish, init guard, safeAll shutdown               |
+| `src/event-bus/event-consumer/utils.ts`            | 0                      | ~10                  | Abort signal support on delay functions                                       |
+| `src/event-bus/event-consumer/rabbitmq.ts`         | ~5                     | ~15                  | Connection error handler, safeAll shutdown                                    |
+| `src/event-bus/event-consumer/azure-servicebus.ts` | ~30                    | ~60                  | Shutdown safety, error tags, init guard, safeAll                              |
+| `src/event-bus/event-consumer/gcp-pubsub.ts`       | ~5                     | ~20                  | Abort-safe reconnect, abort-aware delays, safeAll close                       |
 
 **Net effect:** ~280 lines removed, ~310 lines added (most additions are in the new utility + tests + more robust error handling replacing the flush machinery).

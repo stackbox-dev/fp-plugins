@@ -102,7 +102,12 @@ app.register(Plugins.EventBus, {
 #### Usage Example
 
 ```typescript
-import { EventBus, Plugins, EventBusOptions, EventMessage } from "@stackbox/fp-plugins";
+import {
+  EventBus,
+  EventBusOptions,
+  EventMessage,
+  Plugins,
+} from "@stackbox/fp-plugins";
 
 const app = fastify();
 
@@ -210,6 +215,7 @@ app.register(Plugins.FileStore, {
 - Standard AWS authentication environment variables
 
 The plugin also supports other AWS authentication methods including:
+
 - ECS/EC2 instance roles
 - AWS IAM roles for service accounts (IRSA)
 - Web identity providers
@@ -221,6 +227,7 @@ The plugin also supports other AWS authentication methods including:
 - Standard GCP authentication environment variables
 
 The plugin also supports other GCP authentication methods including:
+
 - GKE Workload Identity
 - Compute Engine service accounts
 - GCP Application Default Credentials (ADC)
@@ -233,6 +240,7 @@ The plugin also supports other GCP authentication methods including:
 - Standard Azure authentication environment variables
 
 The plugin also supports other Azure authentication methods including:
+
 - Managed Identities for Azure resources
 - Azure AD workload identity
 - Azure service principals
@@ -283,7 +291,7 @@ interface FileInfo {
 #### Usage Example
 
 ```typescript
-import { Plugins, FileStore } from "@stackbox/fp-plugins";
+import { FileStore, Plugins } from "@stackbox/fp-plugins";
 import { fastify } from "fastify";
 
 const app = fastify();
@@ -303,7 +311,9 @@ app.post("/upload", async (request, reply) => {
   // Get file info (returns null if file doesn't exist)
   const fileInfo = await request.server.FileStore.getInfo(filepath);
   if (fileInfo) {
-    console.log(`File size: ${fileInfo.size}, Content type: ${fileInfo.contentType}`);
+    console.log(
+      `File size: ${fileInfo.size}, Content type: ${fileInfo.contentType}`,
+    );
   }
 
   // Save file
@@ -336,21 +346,25 @@ app.post("/upload", async (request, reply) => {
 ## Development
 
 ### Prerequisites
-- Node.js 18+ 
+
+- Node.js 18+
 - pnpm
 
 ### Setup
+
 ```bash
 pnpm install
 ```
 
 ### Common Commands
+
 - `pnpm test` - Run tests
 - `pnpm run test:coverage` - Run tests with coverage
 - `pnpm run build` - Build the project
 - `pnpm run pretty` - Format code
 
 ### Testing
+
 Tests are written using Jest and located alongside source files with `.spec.ts` extension.
 
 ## Contributing

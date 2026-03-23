@@ -9,6 +9,7 @@
 **Tech Stack:** TypeScript, Fastify, @nats-io/transport-node, @nats-io/jetstream, @nats-io/nats-core, rabbitmq-client, @google-cloud/pubsub, @azure/service-bus, Jest, Docker (testcontainers not used — direct `docker run` for more control)
 
 **Constraints:**
+
 - `EventBus.publish()` stays `void`
 - New `busType: "nats-jetstream"` added to union type
 - All existing tests must continue to pass
@@ -17,23 +18,24 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `src/event-bus/interfaces.ts` | **Modify** | Add `"nats-jetstream"` to busType union |
-| `src/event-bus/nats-jetstream.ts` | **Create** | NATS JetStream publisher plugin |
-| `src/event-bus/event-consumer/nats-jetstream.ts` | **Create** | NATS JetStream consumer |
-| `src/event-bus/index.ts` | **Modify** | Add nats-jetstream case to switch |
-| `src/event-bus/event-consumer/index.ts` | **Modify** | Add nats-jetstream case to switch |
-| `src/event-bus/rabbitmq.ts` | **Modify** | Fix convert() outside try-catch |
-| `src/event-bus/azure-servicebus.ts` | **Modify** | Fix convert() outside try-catch, add JSON parse error handling |
-| `src/event-bus/event-bus.integration.spec.ts` | **Create** | Docker-based integration tests for all drivers |
-| `package.json` | **Modify** | Add NATS dependencies, test:integration script |
+| File                                             | Action     | Responsibility                                                 |
+| ------------------------------------------------ | ---------- | -------------------------------------------------------------- |
+| `src/event-bus/interfaces.ts`                    | **Modify** | Add `"nats-jetstream"` to busType union                        |
+| `src/event-bus/nats-jetstream.ts`                | **Create** | NATS JetStream publisher plugin                                |
+| `src/event-bus/event-consumer/nats-jetstream.ts` | **Create** | NATS JetStream consumer                                        |
+| `src/event-bus/index.ts`                         | **Modify** | Add nats-jetstream case to switch                              |
+| `src/event-bus/event-consumer/index.ts`          | **Modify** | Add nats-jetstream case to switch                              |
+| `src/event-bus/rabbitmq.ts`                      | **Modify** | Fix convert() outside try-catch                                |
+| `src/event-bus/azure-servicebus.ts`              | **Modify** | Fix convert() outside try-catch, add JSON parse error handling |
+| `src/event-bus/event-bus.integration.spec.ts`    | **Create** | Docker-based integration tests for all drivers                 |
+| `package.json`                                   | **Modify** | Add NATS dependencies, test:integration script                 |
 
 ---
 
 ### Task 1: Fix convert() bug in RabbitMQ and Azure ServiceBus publishers
 
 **Files:**
+
 - Modify: `src/event-bus/rabbitmq.ts`
 - Modify: `src/event-bus/azure-servicebus.ts`
 
@@ -42,6 +44,7 @@ The `convert(rawMsg)` call is outside the try-catch block in both message proces
 - [ ] **Step 1: Fix RabbitMQ — move convert() inside try-catch**
 
 In `src/event-bus/rabbitmq.ts`, the route handler currently does:
+
 ```ts
       const msg = convert(rawMsg);      // line ~38 — OUTSIDE try-catch
       options.validateMsg(msg.event, msg.data, req);
@@ -66,7 +69,7 @@ function convert(msg: IncomingServiceBusMessage): EventMessage {
   } catch {
     throw new ErrorWithStatus(
       400,
-      `Invalid JSON in message body: ${typeof msg.body === 'string' ? msg.body.substring(0, 100) : 'non-string'}`,
+      `Invalid JSON in message body: ${typeof msg.body === "string" ? msg.body.substring(0, 100) : "non-string"}`,
     );
   }
   return {
@@ -95,6 +98,7 @@ git commit -m "fix(event-bus): move convert() inside try-catch, add JSON parse e
 ### Task 2: Add NATS dependencies
 
 **Files:**
+
 - Modify: `package.json`
 
 - [ ] **Step 1: Install NATS packages**
@@ -115,6 +119,7 @@ git commit -m "chore: add NATS JetStream dependencies"
 ### Task 3: Add "nats-jetstream" to busType and wire up factory
 
 **Files:**
+
 - Modify: `src/event-bus/interfaces.ts`
 - Modify: `src/event-bus/index.ts`
 - Modify: `src/event-bus/event-consumer/index.ts`
@@ -122,17 +127,25 @@ git commit -m "chore: add NATS JetStream dependencies"
 - [ ] **Step 1: Add busType**
 
 In `src/event-bus/interfaces.ts`, change:
+
 ```ts
 busType: "rabbitmq" | "gcp-pubsub" | "azure-servicebus" | "in-process";
 ```
+
 To:
+
 ```ts
-busType: "rabbitmq" | "gcp-pubsub" | "azure-servicebus" | "nats-jetstream" | "in-process";
+busType: "rabbitmq" |
+  "gcp-pubsub" |
+  "azure-servicebus" |
+  "nats-jetstream" |
+  "in-process";
 ```
 
 - [ ] **Step 2: Add case to publisher factory**
 
 In `src/event-bus/index.ts`, add a case before `default`:
+
 ```ts
     case "nats-jetstream":
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -143,11 +156,13 @@ In `src/event-bus/index.ts`, add a case before `default`:
 - [ ] **Step 3: Add case to consumer factory**
 
 In `src/event-bus/event-consumer/index.ts`, add import:
+
 ```ts
 import { NatsJetStreamConsumerBuilder } from "./nats-jetstream";
 ```
 
 Add case:
+
 ```ts
     case "nats-jetstream":
       return NatsJetStreamConsumerBuilder(instance);
@@ -165,9 +180,11 @@ git commit -m "feat(event-bus): add nats-jetstream to busType union and factory 
 ### Task 4: Create NATS JetStream publisher plugin
 
 **Files:**
+
 - Create: `src/event-bus/nats-jetstream.ts`
 
 This follows the exact same pattern as the other publishers. Key design decisions:
+
 - Publishes to subject `{topic}.{event}` (topic from options, event from publish call)
 - Message body is JSON `{ event, payload, file, processAfterDelayMs, publishTimestamp }`
 - Headers carry metadata: `event`, `file`, `processAfterDelayMs`
@@ -176,6 +193,7 @@ This follows the exact same pattern as the other publishers. Key design decision
 - safeAll for shutdown
 
 The implementer should read `src/event-bus/rabbitmq.ts` as a reference for the exact pattern, then adapt for NATS JetStream. Key differences from RabbitMQ:
+
 - Uses `@nats-io/transport-node` `connect()` instead of `rabbitmq-client` `Connection`
 - Uses `jetstream(nc)` to get JetStream client
 - Publishes via `js.publish(subject, data, { headers })` instead of `publisher.send()`
@@ -192,6 +210,7 @@ The message processing endpoint should be `/nats-jetstream/process-message` foll
 - [ ] **Step 1: Create the publisher plugin**
 
 Create `src/event-bus/nats-jetstream.ts` following the rabbitmq.ts pattern but adapted for NATS JetStream. The file should:
+
 - Import from `@nats-io/transport-node`, `@nats-io/jetstream`, `@nats-io/nats-core`
 - Import safeAll from ./utils
 - Use the same `IncomingMessage` / `MessageBody` / `convert()` pattern
@@ -217,9 +236,11 @@ git commit -m "feat(event-bus): add NATS JetStream publisher plugin"
 ### Task 5: Create NATS JetStream consumer
 
 **Files:**
+
 - Create: `src/event-bus/event-consumer/nats-jetstream.ts`
 
 Follows the same pattern as the RabbitMQ consumer. Key design:
+
 - Connects to NATS, gets JetStream consumer by stream + durable name
 - Pull-based consume loop with auto-reconnect
 - Injects messages to `/nats-jetstream/process-message` endpoint
@@ -257,14 +278,17 @@ git commit -m "feat(event-bus): add NATS JetStream consumer"
 ### Task 6: Create comprehensive Docker-based integration tests
 
 **Files:**
+
 - Create: `src/event-bus/event-bus.integration.spec.ts`
 
 This is the big one. Model it after the PR's `drivers.integration.spec.ts` but adapted for the event-bus architecture. The tests are self-contained:
+
 - Start Docker containers for each broker
 - Clean up on exit (including Ctrl+C, crash)
 - Test the full round-trip: register plugin → publish event → consumer picks up → handler fires
 
 **Test structure per driver:**
+
 1. Single publish + consume round-trip
 2. Publish with delay (processAfterDelayMs) — verify 425 then process
 3. Handler error retry — verify re-publish with file attribute
@@ -272,12 +296,14 @@ This is the big one. Model it after the PR's `drivers.integration.spec.ts` but a
 5. Graceful shutdown (close without hanging)
 
 **Docker images:**
+
 - RabbitMQ: `rabbitmq:4-alpine` (port 5672)
 - NATS: `nats:latest -js` (port 4222)
 - GCP Pub/Sub: `google/cloud-sdk:emulators` with `gcloud beta emulators pubsub start`
 - Azure Service Bus: `mcr.microsoft.com/azure-messaging/servicebus-emulator` + `mcr.microsoft.com/mssql/server:2022-latest`
 
 **Infrastructure helpers** (same pattern as PR):
+
 - `docker()` — execFileSync wrapper
 - `dockerRun()` — run container with port mapping
 - `dockerStop()` — stop container
@@ -287,6 +313,7 @@ This is the big one. Model it after the PR's `drivers.integration.spec.ts` but a
 - Orphan container cleanup
 
 The implementer should read the PR's test file thoroughly (ask for it if needed) and adapt for the event-bus architecture. Key differences from the PR:
+
 - Instead of a `Driver` class with `init()/send()/startReceiving()/close()`, we have Fastify plugins + EventConsumerBuilder
 - Tests should use `fastify.register(Plugins.EventBus, options)` + `CreateEventConsumer(fastify, type)`
 - Handlers are registered via `options.handlers`
@@ -295,6 +322,7 @@ The implementer should read the PR's test file thoroughly (ask for it if needed)
 - [ ] **Step 1: Create the integration test file**
 
 The test file should be comprehensive. Add a new npm script:
+
 ```json
 "test:integration": "jest event-bus.integration.spec.ts --testTimeout=180000 --forceExit"
 ```
@@ -325,13 +353,13 @@ Covers: RabbitMQ, NATS JetStream, GCP Pub/Sub emulator, Azure SB emulator."
 ### Task 7: Verify build and all tests
 
 - [ ] **Step 1: Run build**
-Run: `pnpm run build`
+      Run: `pnpm run build`
 
 - [ ] **Step 2: Run unit tests**
-Run: `pnpm test`
+      Run: `pnpm test`
 
 - [ ] **Step 3: Run integration tests**
-Run: `npx jest src/event-bus/event-bus.integration.spec.ts --testTimeout=180000 --forceExit`
+      Run: `npx jest src/event-bus/event-bus.integration.spec.ts --testTimeout=180000 --forceExit`
 
 - [ ] **Step 4: Run full RabbitMQ integration tests (existing)**
-Run: `npx jest rabbitmq.spec.ts --testTimeout=120000`
+      Run: `npx jest rabbitmq.spec.ts --testTimeout=120000`

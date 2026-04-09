@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as stream from "node:stream";
 import * as S3 from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
 import * as AzureIden from "@azure/identity";
 import { defaultProvider } from "@aws-sdk/credential-provider-node";
 import { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
@@ -363,14 +364,16 @@ class S3FileStore implements FileStore {
     contentType: string,
     localFilepath: string,
   ) {
-    await this.client.send(
-      new S3.PutObjectCommand({
+    const upload = new Upload({
+      client: this.client,
+      params: {
         Bucket: this.bucket,
         Key: filepath,
         Body: fs.createReadStream(localFilepath),
         ContentType: contentType,
-      }),
-    );
+      },
+    });
+    await upload.done();
   }
 
   async getAsStream(filepath: string): Promise<NodeJS.ReadableStream> {
@@ -391,14 +394,16 @@ class S3FileStore implements FileStore {
     contentType: string,
     rs: stream.Readable,
   ): Promise<void> {
-    await this.client.send(
-      new S3.PutObjectCommand({
+    const upload = new Upload({
+      client: this.client,
+      params: {
         Bucket: this.bucket,
         Key: filepath,
         Body: rs,
         ContentType: contentType,
-      }),
-    );
+      },
+    });
+    await upload.done();
   }
 
   async getInfo(filepath: string): Promise<FileInfo | null> {
@@ -498,8 +503,6 @@ async function ConfigureMinio(f: FastifyInstance) {
       secretAccessKey: process.env.MINIO_SECRET_ACCESS_KEY,
     },
     forcePathStyle: true,
-    requestChecksumCalculation: "WHEN_REQUIRED",
-    responseChecksumValidation: "WHEN_REQUIRED",
   });
 
   const bucket = process.env.MINIO_BUCKET;

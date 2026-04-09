@@ -498,6 +498,8 @@ async function ConfigureMinio(f: FastifyInstance) {
       secretAccessKey: process.env.MINIO_SECRET_ACCESS_KEY,
     },
     forcePathStyle: true,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 
   const bucket = process.env.MINIO_BUCKET;

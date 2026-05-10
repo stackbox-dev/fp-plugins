@@ -74,7 +74,7 @@ class LocalFileStore implements FileStore {
         contentType: "application/octet-stream",
         lastModified: stat.mtime,
       };
-    } catch (err) {
+    } catch (err: any) {
       if (err.code === "ENOENT") {
         return null;
       }
@@ -216,7 +216,7 @@ class AzureFileStore implements FileStore {
         contentType: properties.contentType || "application/octet-stream",
         lastModified: properties.lastModified || new Date(0),
       };
-    } catch (err) {
+    } catch (err: any) {
       if (err.statusCode === 404) {
         return null;
       }
@@ -299,7 +299,7 @@ class GCPFileStore implements FileStore {
           ? new Date(metadata.updated)
           : new Date(0),
       };
-    } catch (err) {
+    } catch (err: any) {
       if (err.code === 404) {
         return null;
       }
@@ -320,7 +320,7 @@ class S3FileStore implements FileStore {
         new S3.HeadObjectCommand({ Bucket: this.bucket, Key: filepath }),
       );
       return true;
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof S3.NoSuchKey) {
         return false;
       }
@@ -420,7 +420,7 @@ class S3FileStore implements FileStore {
         contentType: data.ContentType || "application/octet-stream",
         lastModified: data.LastModified || new Date(),
       };
-    } catch (err) {
+    } catch (err: any) {
       if (
         err instanceof S3.NoSuchKey ||
         err["$metadata"]?.httpStatusCode === 404

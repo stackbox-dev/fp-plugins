@@ -214,7 +214,7 @@ class AzureFileStore implements FileStore {
       return {
         size: properties.contentLength || 0,
         contentType: properties.contentType || "application/octet-stream",
-        lastModified: properties.lastModified || new Date(),
+        lastModified: properties.lastModified || new Date(0),
       };
     } catch (err) {
       if (err.statusCode === 404) {
@@ -297,7 +297,7 @@ class GCPFileStore implements FileStore {
         contentType: metadata.contentType || "application/octet-stream",
         lastModified: metadata.updated
           ? new Date(metadata.updated)
-          : new Date(),
+          : new Date(0),
       };
     } catch (err) {
       if (err.code === 404) {
@@ -324,7 +324,7 @@ class S3FileStore implements FileStore {
       if (err instanceof S3.NoSuchKey) {
         return false;
       }
-      if (err["$metadata"].httpStatusCode === 404) {
+      if (err["$metadata"]?.httpStatusCode === 404) {
         return false;
       }
       throw err;

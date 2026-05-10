@@ -5,6 +5,7 @@
 | #   | Date       | Description                                                                                                     | New Issues           | False Positives |
 | --- | ---------- | --------------------------------------------------------------------------------------------------------------- | -------------------- | --------------- |
 | 1   | 2026-05-09 | Initial audit — file-store, utils, types, all specs (cloud providers + utils only; LocalFileStore out of scope) | 1 HIGH, 2 MED, 2 LOW | 0               |
+| 2   | 2026-05-10 | Re-verify MED-02 after researching credentialDefaultProvider in S3Client source                                 | 0                    | 1 (MED-02)      |
 
 ---
 
@@ -16,16 +17,16 @@
 
 ## False Positives Removed
 
-| Original ID | Why Removed |
-| ----------- | ----------- |
-| —           | —           |
+| Original ID | Why Removed                                                                                                                                                                                                                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MED-02      | `credentialDefaultProvider` IS a valid internal S3ClientConfig field — confirmed in `node_modules/@aws-sdk/client-s3/dist-cjs/runtimeConfig.js`. The SDK reads it to determine the credential provider when none are explicitly supplied. Passing `defaultProvider` explicitly is intentional and correct. |
 
 ---
 
 ## Table of Contents
 
 - [HIGH Issues (1 remaining)](#high-issues)
-- [MEDIUM Issues (2 remaining)](#medium-issues)
+- [MEDIUM Issues (1 remaining)](#medium-issues)
 - [LOW Issues (2 remaining)](#low-issues)
 - [Summary](#summary)
 
@@ -89,25 +90,6 @@ Also remove `diagnostics: false` from `jest.config.js` so TypeScript errors surf
 
 ---
 
-### MED-02: `ConfigureAWS` passes `credentialDefaultProvider` as an unrecognised `S3ClientConfig` option
-
-**File:** `src/file-store.ts:475-479`
-**Severity:** MEDIUM — `credentialDefaultProvider` is not a standard `S3ClientConfig` field in `@aws-sdk/client-s3`; it is silently ignored. If the intent was to explicitly set the credential provider, that intent is not fulfilled and credentials fall back to the SDK's ambient default chain with no indication anything is wrong.
-
-```typescript
-import { defaultProvider } from "@aws-sdk/credential-provider-node";
-
-// ...
-const client = new S3.S3Client({
-  region: process.env.AWS_S3_REGION ?? "us-east-1",
-  credentialDefaultProvider: defaultProvider, // not a valid S3ClientConfig key
-});
-```
-
-**Suggested fix:** Remove the `credentialDefaultProvider` line and the `defaultProvider` import. If explicit credential control is needed, use the `credentials` field instead: `credentials: defaultProvider()`.
-
----
-
 ## LOW Issues
 
 ### LOW-01: `streamToBuffer` is unsafe when a stream emits string chunks
@@ -160,8 +142,8 @@ Or, if a sentinel is acceptable, document it clearly and use a fixed epoch (`new
 | Severity                    | Remaining  |
 | --------------------------- | ---------- |
 | **HIGH**                    | 1          |
-| **MEDIUM**                  | 2          |
+| **MEDIUM**                  | 1          |
 | **LOW**                     | 2          |
-| **TOTAL**                   | **5 open** |
+| **TOTAL**                   | **4 open** |
 | **Fixed**                   | 0          |
 | **False Positives Removed** | 0          |

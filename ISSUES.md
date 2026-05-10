@@ -13,9 +13,9 @@
 
 | ID      | Issue                                                                     | Commit  |
 | ------- | ------------------------------------------------------------------------- | ------- |
-| HIGH-01 | Unsafe `err["$metadata"].httpStatusCode` access in `S3FileStore.exists()` | pending |
-| LOW-01  | `streamToBuffer` unsafe with string-mode streams                          | pending |
-| LOW-02  | Azure/GCP `getInfo()` fallback to `new Date()` for missing `lastModified` | pending |
+| HIGH-01 | Unsafe `err["$metadata"].httpStatusCode` access in `S3FileStore.exists()` | 96d40d4 |
+| LOW-01  | `streamToBuffer` unsafe with string-mode streams                          | 96d40d4 |
+| LOW-02  | Azure/GCP `getInfo()` fallback to `new Date()` for missing `lastModified` | 96d40d4 |
 
 ## False Positives Removed
 

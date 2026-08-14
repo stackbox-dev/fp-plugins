@@ -61,6 +61,14 @@ against the real filesystem, using temp dirs. No test performs real network I/O.
 - Production builds use `tsconfig.build.json`, which excludes `**/*.spec.ts`
 - Outputs to `dist/` with type definitions and **no source maps**
 
+## Issues
+
+Bugs, audit findings and follow-ups belong in **GitHub issues** on this repository.
+Do not reintroduce a tracked `ISSUES.md` or any other in-repo issue list — one existed
+until 2026-08-14 and its open finding moved to #11. Context that is not itself an
+issue — what was audited, when, what turned out to be a false positive — belongs in
+the issue thread or the PR that resolves it.
+
 ## Gotchas
 
 - **Cloud SDKs are lazily required.** `file-store.ts` holds `S3` / `Upload` /
@@ -75,10 +83,7 @@ against the real filesystem, using temp dirs. No test performs real network I/O.
   several points low. `jest.config.js` overrides `sourceMap: true` for the transform
   only. Do not remove it or coverage numbers become meaningless.
 - **`diagnostics: false` in `jest.config.js`** suppresses TypeScript errors during
-  test runs, which masks real type gaps. One known consequence: `src/types.ts` does
-  not augment `FastifyInstance` with `FileStore`, so consumers get no compile-time
-  safety on `fastify.FileStore` and the specs do not complain either. Consumers work
-  around it by declaring the augmentation themselves.
+  test runs, which masks real type gaps — see issue #11.
 - **Pre-commit hooks**: Husky + lint-staged run Prettier on staged
   `.js/.ts/.json/.md` files.
 - **`tsconfig.build.json` sets `skipLibCheck: true`** — a workaround retained from

@@ -20,9 +20,13 @@ Generate a Jest test file for a given source module in this project.
 - Test files live alongside source: `src/foo.ts` → `src/foo.spec.ts`.
   Provider-specific specs are suffixed: `file-store.<provider>.spec.ts`
 - `ts-jest` preset, `testEnvironment: "node"`
-- Cloud SDKs are **mocked**, never containerised — `jest.mock("@google-cloud/storage")`
-  and friends. This package has no Docker-based tests and no `testcontainers`
-  dependency; do not add one
+- Cloud SDKs are **mocked** in unit specs — `jest.mock("@google-cloud/storage")` and
+  friends. The one exception is `src/file-store.minio.integration.spec.ts`, which talks
+  to a real MinIO over the S3 wire protocol; it self-skips unless `MINIO_TEST_ENDPOINT`
+  is set and runs via `pnpm run test:integration`. No `testcontainers` dependency; do
+  not add one
+- Behavioural changes to S3/MinIO paths need cases in the integration spec too —
+  mocked tests cannot catch SDK behaviour changes (see CLAUDE.md, Testing)
 - `LocalFileStore` is the exception: test it against the real filesystem using
   `fs.promises.mkdtemp` under `os.tmpdir()`, and clean up in `afterEach`
 - Save and restore `process.env` around tests that set provider env vars

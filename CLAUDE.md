@@ -13,7 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Clean**: `pnpm run clean` — removes `dist`
 - **Transpile**: `pnpm run transpile` — TypeScript compilation only
 
-These are the only scripts defined in `package.json`. CI (`.github/workflows/`) runs
+The only other scripts in `package.json` are `prepare` (husky) and `prepublishOnly`
+(build before publish). CI (`.github/workflows/`) runs
 `pnpm install --frozen-lockfile`, then lint, build and test on Node 24; the package declares
 `engines: node >=22`.
 
@@ -57,8 +58,8 @@ Registered via `fastify-plugin` (v6) and decorates the Fastify instance with
 ## Testing
 
 Jest + ts-jest. Tests live beside their source in `src/` as `*.spec.ts`, split by
-provider: `file-store.local.spec.ts`, `.gcs.`, `.s3.`, `.azure.`, plus the original
-`file-store.spec.ts` and `integration.spec.ts`. Coverage is 100% on statements,
+provider: `file-store.local.spec.ts`, `.gcs.`, `.s3.`, `.azure.`, plus
+`file-store.spec.ts`, `integration.spec.ts` and `utils.spec.ts`. Coverage is 100% on statements,
 branches, functions and lines — keep it there.
 
 Cloud SDKs are mocked with `jest.mock(...)`; `LocalFileStore` runs against the real

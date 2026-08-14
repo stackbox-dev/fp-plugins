@@ -1,264 +1,95 @@
-# @stackbox/fp-plugins
+# @stackbox-dev/fp-plugins
 
-Fastify plugins for Stackbox applications.
+Fastify plugins for Stackbox applications. Currently one plugin: **FileStore**, a
+single interface over five storage backends.
 
 ## Installation
 
+The package is published to GitHub Packages, not npmjs.org. Point the
+`@stackbox-dev` scope at the GitHub registry in `.npmrc`:
+
+```
+@stackbox-dev:registry=https://npm.pkg.github.com
+```
+
 ```bash
-pnpm install @stackbox/fp-plugins
-# or
-npm install @stackbox/fp-plugins
+pnpm add @stackbox-dev/fp-plugins
 ```
 
-## Overview
+Requires Node.js >= 22. Fastify 3, 4 or 5 is a peer dependency.
 
-This package provides a collection of Fastify plugins designed to enhance Stackbox applications. These plugins extend Fastify's functionality while maintaining its performance and developer experience.
+## FileStore
 
-## Available Plugins
-
-### Event Bus Plugin
-
-A Fastify plugin that integrates an event bus system into your application, enabling efficient event-driven communication between different parts of your application.
-
-#### Supported Message Brokers
-
-- **RabbitMQ** (`rabbitmq`)
-- **Google Cloud Pub/Sub** (`gcp-pubsub`)
-- **Azure Service Bus** (`azure-servicebus`)
-- **In-process** (`in-process`) - for development and testing
-
-#### Configuration
+Register the plugin with a provider `type`; all other configuration comes from
+environment variables.
 
 ```typescript
-app.register(Plugins.EventBus, {
-  // Required: type of message broker to use
-  busType: "rabbitmq" | "gcp-pubsub" | "azure-servicebus" | "in-process",
-
-  // Required for gcp-pubsub and azure-servicebus
-  topic: "your-topic-name",
-
-  // Required for azure-servicebus
-  namespace: "your-namespace",
-
-  // Required: define event handlers
-  handlers: [
-    {
-      file: "module-name",
-      handlers: {
-        "event-name": async function (msg, req) {
-          // Handle the event
-        },
-      },
-    },
-  ],
-
-  // Required: message validation function
-  validateMsg: (event, payload, req) => {
-    // Validate the message
-  },
-
-  // Required: error processing function
-  processError: (err, ctx) => {
-    // Process the error
-    return { err, status: 500 };
-  },
-
-  // Optional: disable the /event-bus/publish/:event route
-  disableEventPublishRoute: false,
-
-  // Optional: control concurrency of event handlers
-  actionConcurrency: 1,
-
-  // Optional: Prometheus registry for metrics
-  registry: new Registry(),
-});
-```
-
-#### Environment Variables
-
-##### RabbitMQ Configuration
-
-- `RABBITMQ_URL`: RabbitMQ connection URL
-- `K_SERVICE`: Service name for queue naming
-
-##### Google Cloud Pub/Sub Configuration
-
-- `EVENT_TOPIC`: GCP Pub/Sub topic name
-- `EVENT_SUBSCRIPTION`: GCP Pub/Sub subscription name
-- `EVENT_SUBSCRIPTION_MAX_MESSAGES`: Maximum concurrent messages (default: 10)
-
-##### Azure Service Bus Configuration
-
-- `EVENT_NAMESPACE`: Azure Service Bus namespace
-- `EVENT_TOPIC`: Azure Service Bus topic
-- `EVENT_SUBSCRIPTION`: Azure Service Bus subscription
-- `EVENT_SUBSCRIPTION_MAX_CONCURRENT_CALLS`: Maximum concurrent calls (default: 10)
-
-##### Retry Configuration
-
-- `EVENT_RETRY_BASE_DELAY`: Base delay for exponential backoff in ms (default: 5000)
-- `EVENT_RETRY_MAX_DELAY`: Maximum delay for retries in ms (default: 60000)
-
-#### Usage Example
-
-```typescript
-import {
-  EventBus,
-  EventBusOptions,
-  EventMessage,
-  Plugins,
-} from "@stackbox/fp-plugins";
+import { fastify } from "fastify";
+import { Plugins } from "@stackbox-dev/fp-plugins";
 
 const app = fastify();
-
-// Register event bus
-app.register(Plugins.EventBus, {
-  busType: "rabbitmq",
-  validateMsg: (event, payload) => {
-    // Validate event and payload
-    console.log(`Validating message: ${event}`);
-  },
-  processError: (err, ctx) => {
-    console.error(`Error processing message: ${err.message}`);
-    return { err, status: 500 };
-  },
-  handlers: [
-    {
-      file: "orderModule",
-      handlers: {
-        "order.created": async function (msg, req) {
-          // Process order created event
-          console.log(`Processing order: ${msg.data.orderId}`);
-        },
-        "order.cancelled": async function (msg, req) {
-          // Process order cancelled event
-          console.log(`Processing cancelled order: ${msg.data.orderId}`);
-        },
-      },
-    },
-  ],
-});
-
-// Publishing events
-app.post("/create-order", async (req, reply) => {
-  // Create order logic...
-
-  // Publish event
-  req.EventBus.publish("order.created", {
-    orderId: "order-123",
-    customerId: "customer-456",
-  });
-
-  return { success: true };
-});
-
-// Delayed events (process after specified milliseconds)
-app.post("/schedule-reminder", async (req, reply) => {
-  req.EventBus.publish(
-    "reminder.send",
-    {
-      userId: "user-123",
-      message: "Reminder to complete your profile",
-    },
-    3600000,
-  ); // Process after 1 hour
-
-  return { scheduled: true };
+await app.register(Plugins.FileStore, {
+  type: "s3", // "local" | "gcs" | "s3" | "minio" | "azureBlob"
 });
 ```
 
-#### Event Consumer
+- The plugin decorates the instance as `app.FileStore` and augments Fastify's
+  types, so `app.FileStore` is fully typed with no declaration on your side.
+- Cloud SDKs load lazily: registering `type: "s3"` loads only the AWS SDK; the
+  GCS and Azure SDKs stay untouched, and vice versa.
+- An unknown `type` throws `Unknown storage type: ...` at registration.
 
-To consume events from external services, use the `CreateEventConsumer` function:
+### Providers
 
-```typescript
-import { CreateEventConsumer } from "@stackbox/fp-plugins";
+#### `local` — local filesystem
 
-// Create consumer that matches your EventBus busType
-const consumer = await CreateEventConsumer(app, "rabbitmq");
+| Variable            | Required | Default                   |
+| ------------------- | -------- | ------------------------- |
+| `LOCAL_STORAGE_DIR` | no       | `<os tmpdir>/stackboxwms` |
 
-// Close consumer when application shuts down
-app.addHook("onClose", async () => {
-  await consumer.close();
-});
-```
+For development. `getInfo` always reports `contentType: "application/octet-stream"`.
 
-### File Store Plugin
+#### `s3` — AWS S3
 
-A plugin that provides an abstraction for file storage operations across different providers:
+| Variable        | Required | Default                                      |
+| --------------- | -------- | -------------------------------------------- |
+| `S3_BUCKET`     | yes      | —                                            |
+| `AWS_S3_REGION` | no       | falls back to `AWS_REGION`, then `us-east-1` |
 
-- Local filesystem
-- AWS S3
-- Google Cloud Storage
-- Azure Blob Storage
-- MinIO
+Set `AWS_S3_REGION` only to point S3 at a different region from the rest of the
+process. Credentials come from the standard AWS chain: env vars, ECS/EC2 instance
+roles, IRSA, web identity, profiles.
 
-#### Configuration
+#### `gcs` — Google Cloud Storage
 
-```typescript
-app.register(Plugins.FileStore, {
-  // Required: type of storage provider to use
-  type: "local" | "s3" | "gcs" | "azureBlob" | "minio",
-});
-```
+| Variable         | Required |
+| ---------------- | -------- |
+| `STORAGE_BUCKET` | yes      |
 
-#### Environment Variables
+Credentials via Application Default Credentials: GKE Workload Identity, Compute
+Engine service accounts, or `GOOGLE_APPLICATION_CREDENTIALS`.
 
-##### Local File System
+#### `azureBlob` — Azure Blob Storage
 
-- `LOCAL_STORAGE_DIR`: Directory for file storage (default: system temp directory)
+| Variable                    | Required |
+| --------------------------- | -------- |
+| `AZURE_STORAGE_ACCOUNT_URL` | yes      |
+| `AZURE_STORAGE_CONTAINER`   | yes      |
 
-##### AWS S3
+Credentials via `DefaultAzureCredential`: managed identity, workload identity,
+service principal, CLI login.
 
-- `AWS_S3_REGION`: AWS region. Falls back to the standard `AWS_REGION`, then to
-  "us-east-1". Set `AWS_S3_REGION` only to point S3 at a different region from the
-  rest of the process.
-- `S3_BUCKET`: S3 bucket name (required)
-- Standard AWS authentication environment variables
+#### `minio` — MinIO (S3-compatible, path-style addressing)
 
-The plugin also supports other AWS authentication methods including:
+| Variable                  | Required | Default     |
+| ------------------------- | -------- | ----------- |
+| `MINIO_ENDPOINT`          | yes      | —           |
+| `MINIO_ACCESS_KEY_ID`     | yes      | —           |
+| `MINIO_SECRET_ACCESS_KEY` | yes      | —           |
+| `MINIO_BUCKET`            | yes      | —           |
+| `MINIO_REGION`            | no       | `us-east-1` |
 
-- ECS/EC2 instance roles
-- AWS IAM roles for service accounts (IRSA)
-- Web identity providers
-- AWS profiles
-
-##### Google Cloud Storage
-
-- `STORAGE_BUCKET`: GCS bucket name (required)
-- Standard GCP authentication environment variables
-
-The plugin also supports other GCP authentication methods including:
-
-- GKE Workload Identity
-- Compute Engine service accounts
-- GCP Application Default Credentials (ADC)
-- Service account key files (not recommended for production)
-
-##### Azure Blob Storage
-
-- `AZURE_STORAGE_ACCOUNT_URL`: Azure storage account URL (required)
-- `AZURE_STORAGE_CONTAINER`: Azure storage container name (required)
-- Standard Azure authentication environment variables
-
-The plugin also supports other Azure authentication methods including:
-
-- Managed Identities for Azure resources
-- Azure AD workload identity
-- Azure service principals
-- Azure DefaultAzureCredential chain
-
-##### MinIO
-
-- `MINIO_ENDPOINT`: MinIO server endpoint (required)
-- `MINIO_ACCESS_KEY_ID`: MinIO access key (required)
-- `MINIO_SECRET_ACCESS_KEY`: MinIO secret key (required)
-- `MINIO_REGION`: MinIO region (default: "us-east-1")
-- `MINIO_BUCKET`: MinIO bucket name (required)
-
-#### FileStore Interface
-
-The plugin provides a `FileStore` interface with the following methods:
+### API
 
 ```typescript
 interface FileStore {
@@ -290,56 +121,24 @@ interface FileInfo {
 }
 ```
 
-#### Usage Example
+For a missing file, `exists` returns `false` and `getInfo` returns `null`;
+`getAsBuffer` and `getAsStream` throw.
+
+### Example
 
 ```typescript
-import { FileStore, Plugins } from "@stackbox/fp-plugins";
-import { fastify } from "fastify";
-
-const app = fastify();
-
-// Register file store plugin
-app.register(Plugins.FileStore, {
-  type: "s3", // Choose the appropriate storage type
-});
-
-// Using the file store
 app.post("/upload", async (request, reply) => {
   const { filepath, contentType, data } = request.body;
 
-  // Check if file exists
-  const exists = await request.server.FileStore.exists(filepath);
-
-  // Get file info (returns null if file doesn't exist)
-  const fileInfo = await request.server.FileStore.getInfo(filepath);
-  if (fileInfo) {
-    console.log(
-      `File size: ${fileInfo.size}, Content type: ${fileInfo.contentType}`,
-    );
-  }
-
-  // Save file
   await request.server.FileStore.save(filepath, contentType, data);
 
-  // Get file as buffer
-  const fileContent = await request.server.FileStore.getAsBuffer(filepath);
+  const info = await request.server.FileStore.getInfo(filepath);
+  if (info) {
+    console.log(`size=${info.size} contentType=${info.contentType}`);
+  }
 
-  // Get file as stream
-  const fileStream = await request.server.FileStore.getAsStream(filepath);
-
-  // Copy from stream
-  await request.server.FileStore.copyFromStream(
-    filepath,
-    contentType,
-    someReadableStream,
-  );
-
-  // Copy from local file
-  await request.server.FileStore.copyFromLocalFile(
-    filepath,
-    contentType,
-    "/path/to/local/file",
-  );
+  const buffer = await request.server.FileStore.getAsBuffer(filepath);
+  const stream = await request.server.FileStore.getAsStream(filepath);
 
   return { success: true };
 });
@@ -347,31 +146,8 @@ app.post("/upload", async (request, reply) => {
 
 ## Development
 
-### Prerequisites
-
-- Node.js 18+
-- pnpm
-
-### Setup
-
-```bash
-pnpm install
-```
-
-### Common Commands
-
-- `pnpm test` - Run tests
-- `pnpm run test:coverage` - Run tests with coverage
-- `pnpm run build` - Build the project
-- `pnpm run pretty` - Format code
-
-### Testing
-
-Tests are written using Jest and located alongside source files with `.spec.ts` extension.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, PR rules, and the release
+process. Architecture notes live in [CLAUDE.md](CLAUDE.md).
 
 ## License
 

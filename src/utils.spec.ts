@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
 import { DataStream, streamToBuffer } from "./utils";
 
@@ -163,15 +164,56 @@ describe("Utils", () => {
     });
   });
 
-  describe("DataStream interface", () => {
-    it("should define the correct interface structure", () => {
-      // This is a compile-time test to ensure the interface is properly defined
-      const mockStream: DataStream = {
-        on: jest.fn().mockReturnThis(),
-      };
+  describe("premature close", () => {
+    // A stream destroyed without an error emits only 'close'. Before this was handled
+    // the promise stayed pending forever and hung the request awaiting getAsBuffer.
+    it("rejects when the stream is destroyed without an error", async () => {
+      const stream = new Readable({ read() {} });
+      stream.push("partial");
+      setImmediate(() => stream.destroy());
 
-      expect(typeof mockStream.on).toBe("function");
-      expect(mockStream.on("test", () => {})).toBe(mockStream);
+      await expect(streamToBuffer(stream)).rejects.toThrow(
+        "stream closed before end",
+      );
+    });
+
+    it("rejects with the original error when destroyed with one", async () => {
+      const stream = new Readable({ read() {} });
+      setImmediate(() => stream.destroy(new Error("boom")));
+
+      await expect(streamToBuffer(stream)).rejects.toThrow("boom");
+    });
+
+    it("still resolves normally when close follows end", async () => {
+      const stream: DataStream = Readable.from(["a", "b"]);
+
+      expect((await streamToBuffer(stream)).toString()).toBe("ab");
+    });
+
+    // Late events must not settle the promise a second time. EventEmitter is used
+    // directly so the exact sequence can be driven; a real Readable will not emit
+    // 'error' after 'end'.
+    it("ignores an error arriving after end", async () => {
+      const em = new EventEmitter() as unknown as DataStream;
+      const p = streamToBuffer(em);
+      const e = em as unknown as EventEmitter;
+      e.emit("data", Buffer.from("ok"));
+      e.emit("end");
+      e.emit("error", new Error("too late"));
+      e.emit("close");
+
+      expect((await p).toString()).toBe("ok");
+    });
+
+    it("ignores end and close arriving after an error", async () => {
+      const em = new EventEmitter() as unknown as DataStream;
+      const p = streamToBuffer(em);
+      const e = em as unknown as EventEmitter;
+      e.emit("error", new Error("first"));
+      e.emit("end");
+      e.emit("close");
+
+      await expect(p).rejects.toThrow("first");
     });
   });
 });

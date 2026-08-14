@@ -118,9 +118,21 @@ describe("GCPFileStore", () => {
   describe("getAsStream", () => {
     it("should return the read stream", async () => {
       const rs = Readable.from(["data"]);
+      mockFile.exists.mockResolvedValueOnce([true]);
       mockFile.createReadStream.mockReturnValueOnce(rs);
 
       expect(await store.getAsStream("test.txt")).toBe(rs);
+    });
+
+    // createReadStream does no I/O, so without an existence check a missing object
+    // resolves and fails later as a stream 'error'. Every other provider rejects.
+    it("rejects for a missing object instead of returning a doomed stream", async () => {
+      mockFile.exists.mockResolvedValueOnce([false]);
+
+      await expect(store.getAsStream("missing.txt")).rejects.toThrow(
+        "File not found: missing.txt",
+      );
+      expect(mockFile.createReadStream).not.toHaveBeenCalled();
     });
   });
 

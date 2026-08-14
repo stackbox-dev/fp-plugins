@@ -117,7 +117,8 @@ the issue thread or the PR that resolves it.
 - **`tsconfig.build.json` sets `skipLibCheck: true`** — still required. Turning it off
   fails on `thread-stream@4.2.0` (a pino dependency), whose `.d.ts` references
   `TransferListItem`, a name its `worker_threads` types do not export.
-- **Releasing**: version bumps happen on `main`, in their own commit named just the
-  version (`2.16.0`). Do not put a version bump in a feature PR and do not create
-  tags by hand — publishing is triggered by creating a GitHub Release. See
+- **Releasing**: bump the version with `pnpm version` on a `release/X.Y.Z` branch and
+  merge it. `.github/workflows/release.yml` does the rest — tag, GitHub Release,
+  publish — on any push to `main` whose version has no matching tag. Do not push tags
+  or create releases by hand, and never put a version bump in a feature PR. See
   `.claude/skills/release/SKILL.md`.

@@ -1,0 +1,122 @@
+# Merging a version bump to main is the whole release. This workflow tags, creates the
+# GitHub Release and publishes to GitHub Packages.
+#
+# Why one workflow instead of "create a release, let release:published publish it":
+# a release created with GITHUB_TOKEN does not trigger further workflow runs — GitHub
+# blocks that to avoid recursion — so the publish would silently never happen.
+#
+# Every step is idempotent, so a failed run can be retried with workflow_dispatch
+# without bumping the version again.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        run: |
+          VERSION="$(node -p 'require("./package.json").version')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "manual run: releasing v$VERSION"
+          elif git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "v$VERSION is already tagged — nothing to release"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "v$VERSION is new — releasing"
+          fi
+
+  release:
+    needs: check
+    if: needs.check.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the tag and the release
+      packages: write # publish
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com/
+      - run: pnpm install --frozen-lockfile
+
+      # Publishing is irreversible, so the full gate runs first.
+      - run: pnpm run lint
+      - run: pnpm run build
+      - run: pnpm test
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name release-minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9000/minio/health/live; then
+              echo "minio ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "minio did not become healthy" >&2
+          exit 1
+      - run: pnpm run test:integration
+        env:
+          MINIO_TEST_ENDPOINT: http://127.0.0.1:9000
+      - name: Stop MinIO
+        if: always()
+        run: docker rm -f release-minio || true
+
+      - name: Tag
+        run: |
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "tag v$VERSION already exists"
+          else
+            git tag "v$VERSION"
+            git push origin "v$VERSION"
+          fi
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "release v$VERSION already exists"
+          else
+            gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+          fi
+
+      # npm publish, not pnpm publish: pnpm adds git-state checks this flow does not
+      # need. prepublishOnly rebuilds. No --provenance: GitHub Packages rejects
+      # attestations. A duplicate version 409s, which is the desired failure.
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish

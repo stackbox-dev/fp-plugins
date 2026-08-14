@@ -23,18 +23,20 @@ let AzureBlob!: typeof AzureBlobMod;
 let AzureIden!: typeof import("@azure/identity");
 let Gcs!: typeof GcsMod;
 
+// Plain assignment rather than ??=: node memoises require(), so re-assigning on a
+// second call is free and keeps these branchless.
 function loadAWS(): void {
-  S3 ??= require("@aws-sdk/client-s3");
-  Upload ??= require("@aws-sdk/lib-storage").Upload;
+  S3 = require("@aws-sdk/client-s3");
+  Upload = require("@aws-sdk/lib-storage").Upload;
 }
 
 function loadAzure(): void {
-  AzureBlob ??= require("@azure/storage-blob");
-  AzureIden ??= require("@azure/identity");
+  AzureBlob = require("@azure/storage-blob");
+  AzureIden = require("@azure/identity");
 }
 
 function loadGCP(): void {
-  Gcs ??= require("@google-cloud/storage");
+  Gcs = require("@google-cloud/storage");
 }
 
 export interface FileInfo {

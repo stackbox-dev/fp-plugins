@@ -35,14 +35,19 @@ updated lockfile.
 
 ## Releases
 
-**Do not put a version bump in a feature or fix PR**, and do not create tags by hand.
+Cut the version on a branch — `main` requires a PR:
 
-Releasing is a separate act on `main`:
+```bash
+git checkout -b release/X.Y.Z
+pnpm version <patch|minor|major>
+git push -u origin release/X.Y.Z   # branch only; do not push the tag
+```
 
-1. Bump `version` in `package.json` in its own commit, whose message is just the
-   version number (`2.16.0`), matching existing history.
-2. Create a **GitHub Release**. That is what creates the tag and triggers
-   `npm-publish-github-packages.yml` to publish. Pushing to `main` alone publishes
-   nothing.
+Open a PR titled with the version. **Merging it is the release**: the `Release`
+workflow tags, creates the GitHub Release and publishes to GitHub Packages, after
+running lint, build, unit tests and the MinIO integration suite.
 
-See `.claude/skills/release/SKILL.md` for the full checklist.
+Do not push tags or create releases by hand. Merges whose version is already tagged
+are a no-op, so normal PRs do not publish.
+
+See `.claude/skills/release/SKILL.md`.

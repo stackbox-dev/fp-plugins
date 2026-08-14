@@ -10,6 +10,7 @@ describe("AzureFileStore", () => {
   let fastify: ReturnType<typeof Fastify>;
   let mockBlobClient: any;
   let mockContainerClient: any;
+  let mockGetContainerClient: jest.Mock;
   let store: FileStore;
 
   beforeEach(async () => {
@@ -30,8 +31,9 @@ describe("AzureFileStore", () => {
       getBlockBlobClient: jest.fn(() => mockBlobClient),
     };
 
+    mockGetContainerClient = jest.fn(() => mockContainerClient);
     (BlobServiceClient as unknown as jest.Mock).mockImplementation(() => ({
-      getContainerClient: jest.fn(() => mockContainerClient),
+      getContainerClient: mockGetContainerClient,
     }));
 
     process.env.AZURE_STORAGE_ACCOUNT_URL =
@@ -56,6 +58,12 @@ describe("AzureFileStore", () => {
         {},
       );
       expect(store).toBeDefined();
+    });
+
+    // Nothing asserted the container name, so every operation could target the wrong
+    // container and the suite would stay green.
+    it("opens the container named by AZURE_STORAGE_CONTAINER", () => {
+      expect(mockGetContainerClient).toHaveBeenCalledWith("test-container");
     });
 
     it("should throw when AZURE_STORAGE_ACCOUNT_URL is missing", async () => {
@@ -102,6 +110,27 @@ describe("AzureFileStore", () => {
       );
     });
 
+    // Without this, changing the utf8 encoding to ascii mangles every non-ASCII byte
+    // and the suite stays green — all other payload fixtures are ASCII.
+    it("encodes a unicode payload as utf8", async () => {
+      mockBlobClient.uploadData.mockResolvedValueOnce({});
+
+      await store.save("u.txt", "text/plain", "héllo→世界");
+
+      expect(mockBlobClient.uploadData).toHaveBeenCalledWith(
+        Buffer.from("héllo→世界", "utf8"),
+        { blobHTTPHeaders: { blobContentType: "text/plain" } },
+      );
+    });
+
+    it("propagates a rejected upload, not just an errorCode", async () => {
+      mockBlobClient.uploadData.mockRejectedValueOnce(new Error("AuthFailure"));
+
+      await expect(store.save("a.txt", "text/plain", "x")).rejects.toThrow(
+        "AuthFailure",
+      );
+    });
+
     it("should pass a Buffer payload through untouched", async () => {
       mockBlobClient.uploadData.mockResolvedValueOnce({});
       const data = Buffer.from([1, 2, 3]);
@@ -137,6 +166,24 @@ describe("AzureFileStore", () => {
       await expect(store.getAsBuffer("a.txt")).rejects.toThrow(
         "No readableStreamBody",
       );
+    });
+  });
+
+  describe("write failures", () => {
+    it("propagates a rejected uploadFile", async () => {
+      mockBlobClient.uploadFile.mockRejectedValueOnce(new Error("io error"));
+
+      await expect(
+        store.copyFromLocalFile("a.txt", "text/plain", "/tmp/x"),
+      ).rejects.toThrow("io error");
+    });
+
+    it("propagates a rejected uploadStream", async () => {
+      mockBlobClient.uploadStream.mockRejectedValueOnce(new Error("aborted"));
+
+      await expect(
+        store.copyFromStream("a.txt", "text/plain", Readable.from(["x"])),
+      ).rejects.toThrow("aborted");
     });
   });
 

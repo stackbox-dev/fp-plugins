@@ -23,3 +23,31 @@ jobs:
       - run: pnpm run lint
       - run: pnpm run build
       - run: pnpm test
+
+      # Started as a step, not a service: `services:` cannot pass a command, and the
+      # minio image needs `server /data`. Without this the integration spec skips, and
+      # skip-by-default plus never-in-CI means it rots — which matters because mocked
+      # tests cannot catch an SDK behaviour change.
+      - name: Start MinIO
+        run: |
+          docker run -d --name ci-minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9000/minio/health/live; then
+              echo "minio ready"; exit 0
+            fi
+            sleep 2
+          done
+          echo "minio did not become healthy" >&2
+          docker logs ci-minio >&2
+          exit 1
+
+      - run: pnpm run test:integration
+        env:
+          MINIO_TEST_ENDPOINT: http://127.0.0.1:9000
+
+      - name: Stop MinIO
+        if: always()
+        run: docker rm -f ci-minio || true

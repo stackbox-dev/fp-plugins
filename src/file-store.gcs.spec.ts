@@ -88,6 +88,24 @@ describe("GCPFileStore", () => {
         contentType: "text/plain",
       });
     });
+
+    it("propagates a failed save", async () => {
+      mockFile.save.mockRejectedValueOnce(new Error("quota exceeded"));
+
+      await expect(
+        store.save("test.txt", "text/plain", "content"),
+      ).rejects.toThrow("quota exceeded");
+    });
+
+    it("round-trips a unicode payload unchanged", async () => {
+      mockFile.save.mockResolvedValueOnce(undefined);
+
+      await store.save("u.txt", "text/plain", "héllo→世界");
+
+      expect(mockFile.save).toHaveBeenCalledWith("héllo→世界", {
+        contentType: "text/plain",
+      });
+    });
   });
 
   describe("getAsBuffer", () => {
@@ -112,6 +130,14 @@ describe("GCPFileStore", () => {
         contentType: "text/plain",
         destination: "dest.txt",
       });
+    });
+
+    it("propagates a failed upload", async () => {
+      mockBucket.upload.mockRejectedValueOnce(new Error("upload failed"));
+
+      await expect(
+        store.copyFromLocalFile("dest.txt", "text/plain", "/tmp/src.txt"),
+      ).rejects.toThrow("upload failed");
     });
   });
 
@@ -158,6 +184,19 @@ describe("GCPFileStore", () => {
         contentType: "text/plain",
       });
       expect(Buffer.concat(chunks).toString()).toBe("piped content");
+    });
+
+    it("propagates a write-stream failure", async () => {
+      const ws = new Writable({
+        write(_chunk, _enc, cb) {
+          cb(new Error("disk full"));
+        },
+      });
+      mockFile.createWriteStream.mockReturnValueOnce(ws);
+
+      await expect(
+        store.copyFromStream("test.txt", "text/plain", Readable.from(["x"])),
+      ).rejects.toThrow("disk full");
     });
   });
 

@@ -227,6 +227,19 @@ describe("LocalFileStore", () => {
         await fs.promises.readFile(path.join(tempDir, "x/y/z.txt"), "utf8"),
       ).toBe("piped");
     });
+
+    it("propagates a source stream error", async () => {
+      const store = await register();
+      const bad = new Readable({
+        read() {
+          this.destroy(new Error("source failed"));
+        },
+      });
+
+      await expect(
+        store.copyFromStream("bad.txt", "text/plain", bad),
+      ).rejects.toThrow("source failed");
+    });
   });
 });
 

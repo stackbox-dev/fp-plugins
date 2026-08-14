@@ -64,6 +64,26 @@ describeIf("MinIO integration", () => {
     expect(await store.getInfo(`missing-${Date.now()}.txt`)).toBeNull();
   });
 
+  // The real GetObject 404 path. Mocks cannot catch a change in this error shape —
+  // the NoSuchKey/NotFound mismatch fixed in #9 was invisible to them.
+  it("rejects getAsBuffer for a missing key", async () => {
+    await expect(
+      store.getAsBuffer(`missing-${Date.now()}.txt`),
+    ).rejects.toBeDefined();
+  });
+
+  it("rejects getAsStream for a missing key", async () => {
+    await expect(
+      store.getAsStream(`missing-${Date.now()}.txt`),
+    ).rejects.toBeDefined();
+  });
+
+  it("round-trips a unicode payload and key", async () => {
+    const key = `unicode-héllo-世界-${Date.now()}.txt`;
+    await store.save(key, "text/plain", "héllo→世界");
+    expect((await store.getAsBuffer(key)).toString()).toBe("héllo→世界");
+  });
+
   it("round-trips a string payload", async () => {
     const key = `round-trip-${Date.now()}.txt`;
     await store.save(key, "text/plain", "hello minio");

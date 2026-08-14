@@ -2,8 +2,9 @@
 
 ## Setup
 
-This repository uses **pnpm** (pinned via `packageManager` in `package.json`). Do not
-use npm or yarn — `pnpm-lock.yaml` is the committed lockfile and the only one CI reads.
+Node.js >= 22 (CI runs 24). This repository uses **pnpm** (pinned via `packageManager`
+in `package.json`). Do not use npm or yarn — `pnpm-lock.yaml` is the committed lockfile
+and the only one CI reads.
 
 ```bash
 pnpm install

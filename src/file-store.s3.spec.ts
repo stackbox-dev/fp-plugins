@@ -57,12 +57,40 @@ describe("S3FileStore", () => {
       });
     });
 
-    it("defaults the region to us-east-1 when AWS_S3_REGION is unset", async () => {
+    it("falls back to the standard AWS_REGION when AWS_S3_REGION is unset", async () => {
       delete process.env.AWS_S3_REGION;
+      process.env.AWS_REGION = "eu-central-1";
+
+      await fastify.register(FileStorePlugin, { type: "s3" });
+
+      expect(clientConfig().region).toBe("eu-central-1");
+    });
+
+    it("prefers AWS_S3_REGION over AWS_REGION", async () => {
+      process.env.AWS_S3_REGION = "ap-south-1";
+      process.env.AWS_REGION = "eu-central-1";
+
+      await fastify.register(FileStorePlugin, { type: "s3" });
+
+      expect(clientConfig().region).toBe("ap-south-1");
+    });
+
+    it("defaults the region to us-east-1 when neither is set", async () => {
+      delete process.env.AWS_S3_REGION;
+      delete process.env.AWS_REGION;
 
       await fastify.register(FileStorePlugin, { type: "s3" });
 
       expect(clientConfig().region).toBe("us-east-1");
+    });
+
+    it("validates S3_BUCKET before constructing the client", async () => {
+      delete process.env.S3_BUCKET;
+
+      await expect(
+        fastify.register(FileStorePlugin, { type: "s3" }),
+      ).rejects.toThrow("S3_BUCKET env-var is not defined");
+      expect(S3.S3Client).not.toHaveBeenCalled();
     });
 
     it("throws when S3_BUCKET is not defined", async () => {
@@ -144,8 +172,9 @@ describe("S3FileStore", () => {
         });
       });
 
-      it("returns false on a NoSuchKey error", async () => {
-        mockSend.mockRejectedValueOnce(new S3.NoSuchKey({} as any));
+      // HeadObject reports a missing key as NotFound, not NoSuchKey.
+      it("returns false on a NotFound error", async () => {
+        mockSend.mockRejectedValueOnce(new S3.NotFound({} as any));
 
         await expect(store.exists("a/b.txt")).resolves.toBe(false);
       });
@@ -281,15 +310,16 @@ describe("S3FileStore", () => {
 
         const info = await store.getInfo("a/b.txt");
 
-        expect(info).toMatchObject({
+        // epoch, matching Azure and GCP — an unknown timestamp must not read as "now".
+        expect(info).toEqual({
           size: 0,
           contentType: "application/octet-stream",
+          lastModified: new Date(0),
         });
-        expect(info!.lastModified).toBeInstanceOf(Date);
       });
 
-      it("returns null on a NoSuchKey error", async () => {
-        mockSend.mockRejectedValueOnce(new S3.NoSuchKey({} as any));
+      it("returns null on a NotFound error", async () => {
+        mockSend.mockRejectedValueOnce(new S3.NotFound({} as any));
 
         await expect(store.getInfo("a/b.txt")).resolves.toBeNull();
       });

@@ -106,9 +106,8 @@ describe("FileStore Plugin", () => {
       await FileStore.save(filepath, "text/plain", "content");
       expect(await FileStore.exists(filepath)).toBe(true);
 
-      // The current implementation throws for non-existent files, so test that
       const nonExistentPath = "non-existent-file.txt";
-      await expect(FileStore.exists(nonExistentPath)).rejects.toThrow();
+      expect(await FileStore.exists(nonExistentPath)).toBe(false);
     });
 
     it("should get file info", async () => {

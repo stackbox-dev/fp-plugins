@@ -90,7 +90,15 @@ class LocalFileStore implements FileStore {
   constructor(public dir: string) {}
   async exists(filepath: string): Promise<boolean> {
     const p = path.join(this.dir, filepath);
-    return !!(await fs.promises.stat(p));
+    try {
+      await fs.promises.stat(p);
+      return true;
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        return false;
+      }
+      throw err;
+    }
   }
   async getInfo(filepath: string): Promise<FileInfo | null> {
     try {
@@ -115,6 +123,7 @@ class LocalFileStore implements FileStore {
     data: string | Buffer,
   ): Promise<void> {
     const p = path.join(this.dir, filepath);
+    await fs.promises.mkdir(path.dirname(p), { recursive: true });
     await fs.promises.writeFile(p, data);
   }
   async getAsBuffer(filepath: string): Promise<Buffer> {
@@ -348,7 +357,9 @@ class S3FileStore implements FileStore {
       );
       return true;
     } catch (err: any) {
-      if (err instanceof S3.NoSuchKey) {
+      // HeadObject reports a missing key as NotFound; NoSuchKey is modelled on GetObject
+      // and never reaches here. The status check stays as the belt-and-braces path.
+      if (err instanceof S3.NotFound) {
         return false;
       }
       if (err["$metadata"]?.httpStatusCode === 404) {
@@ -445,11 +456,13 @@ class S3FileStore implements FileStore {
       return {
         size: data.ContentLength || 0,
         contentType: data.ContentType || "application/octet-stream",
-        lastModified: data.LastModified || new Date(),
+        // epoch, not now — an unknown timestamp must not read as "just modified",
+        // matching AzureFileStore and GCPFileStore.
+        lastModified: data.LastModified || new Date(0),
       };
     } catch (err: any) {
       if (
-        err instanceof S3.NoSuchKey ||
+        err instanceof S3.NotFound ||
         err["$metadata"]?.httpStatusCode === 404
       ) {
         return null;
@@ -501,17 +514,20 @@ async function ConfigureGCP(f: FastifyInstance) {
 }
 
 async function ConfigureAWS(f: FastifyInstance) {
-  loadAWS();
-  const client = new S3.S3Client({
-    region: process.env.AWS_S3_REGION ?? "us-east-1",
-    credentialDefaultProvider:
-      require("@aws-sdk/credential-provider-node").defaultProvider,
-  });
-
   const bucket = process.env.S3_BUCKET;
   if (!bucket) {
     throw new Error("S3_BUCKET env-var is not defined");
   }
+
+  loadAWS();
+  const client = new S3.S3Client({
+    // AWS_REGION is what every other AWS tool in the environment sets. Passing a region
+    // unconditionally skips the SDK's own resolution chain, so without this fallback a
+    // pod configured the conventional way would silently talk to us-east-1.
+    region: process.env.AWS_S3_REGION ?? process.env.AWS_REGION ?? "us-east-1",
+    credentialDefaultProvider: require("@aws-sdk/credential-provider-node")
+      .defaultProvider,
+  });
 
   f.decorate("FileStore", new S3FileStore(client, bucket));
 }

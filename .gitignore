@@ -2,9 +2,10 @@
 dist
 
 # dependencies
+# pnpm-lock.yaml is committed on purpose — CI installs --frozen-lockfile so builds
+# and the published artifact are reproducible. Other package managers are not used.
 node_modules
 package-lock.json
-pnpm-lock.yaml
 yarn.lock
 
 # log
@@ -12,15 +13,5 @@ npm-debug.log
 
 # macos
 .DS_Store
-
-# env files
-env
-
-data
-
-config/*
-!config/dev.yml
-!config/test.yml
-bin
 
 coverage

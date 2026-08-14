@@ -210,7 +210,9 @@ app.register(Plugins.FileStore, {
 
 ##### AWS S3
 
-- `AWS_S3_REGION`: AWS region (default: "us-east-1")
+- `AWS_S3_REGION`: AWS region. Falls back to the standard `AWS_REGION`, then to
+  "us-east-1". Set `AWS_S3_REGION` only to point S3 at a different region from the
+  rest of the process.
 - `S3_BUCKET`: S3 bucket name (required)
 - Standard AWS authentication environment variables
 

@@ -83,6 +83,20 @@ describe("LocalFileStore", () => {
       await store.save("there.txt", "text/plain", "x");
       expect(await store.exists("there.txt")).toBe(true);
     });
+
+    it("returns false for a missing file rather than throwing", async () => {
+      const store = await register();
+      expect(await store.exists("not-there.txt")).toBe(false);
+    });
+
+    it("rethrows non-ENOENT errors", async () => {
+      const store = await register();
+      await store.save("a-file.txt", "text/plain", "x");
+      // stat()ing through a regular file yields ENOTDIR, not ENOENT
+      await expect(store.exists("a-file.txt/child")).rejects.toMatchObject({
+        code: "ENOTDIR",
+      });
+    });
   });
 
   describe("getInfo", () => {
@@ -130,6 +144,17 @@ describe("LocalFileStore", () => {
       expect(await fs.promises.readFile(path.join(tempDir, "buf.bin"))).toEqual(
         Buffer.from([1, 2, 3]),
       );
+    });
+
+    it("creates missing parent directories, like its sibling methods", async () => {
+      const store = await register();
+      await store.save("deep/nested/dir/file.txt", "text/plain", "nested");
+      expect(
+        await fs.promises.readFile(
+          path.join(tempDir, "deep/nested/dir/file.txt"),
+          "utf8",
+        ),
+      ).toBe("nested");
     });
   });
 

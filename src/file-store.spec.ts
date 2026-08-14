@@ -46,7 +46,9 @@ describe("FileStore Plugin", () => {
       const mockS3Client = {
         send: jest.fn(),
       };
-      (S3.S3Client as jest.Mock).mockImplementation(() => mockS3Client);
+      (S3.S3Client as unknown as jest.Mock).mockImplementation(
+        () => mockS3Client,
+      );
 
       await fastify.register(FileStorePlugin, { type: "s3" });
       expect(fastify.FileStore).toBeDefined();
@@ -166,7 +168,9 @@ describe("FileStore Plugin", () => {
         send: jest.fn(),
       };
 
-      (S3.S3Client as jest.Mock).mockImplementation(() => mockS3Client);
+      (S3.S3Client as unknown as jest.Mock).mockImplementation(
+        () => mockS3Client,
+      );
 
       process.env.AWS_REGION = "us-east-1";
       process.env.S3_BUCKET = "test-bucket";
@@ -253,7 +257,7 @@ describe("FileStore Plugin", () => {
         getContainerClient: jest.fn(() => mockContainerClient),
       };
 
-      (BlobServiceClient as jest.Mock).mockImplementation(
+      (BlobServiceClient as unknown as jest.Mock).mockImplementation(
         () => mockBlobServiceClient,
       );
 

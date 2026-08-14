@@ -12,7 +12,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Transpile**: `pnpm run transpile` — TypeScript compilation only
 
 These are the only scripts defined in `package.json`. CI (`.github/workflows/`) runs
-`npm install` + `npm test` on Node 24; the package declares `engines: node >=22`.
+`pnpm install --frozen-lockfile` + `pnpm test` on Node 24; the package declares
+`engines: node >=22`.
+
+**pnpm only** — never npm or yarn. `pnpm-lock.yaml` is committed and CI installs
+frozen, so dependency changes are reviewed as a lockfile diff. The pnpm version is
+pinned by `packageManager` in `package.json`; `pnpm/action-setup` reads it.
 
 ## Project Architecture
 

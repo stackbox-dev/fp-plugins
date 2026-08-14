@@ -7,16 +7,21 @@ on:
   release:
     types: [created]
 
+env:
+  NODE_VERSION: 24
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
-      - run: npm install
-      - run: npm test
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
 
   publish-gpr:
     needs: build
@@ -26,11 +31,16 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
           registry-url: https://npm.pkg.github.com/
-      - run: npm install
+      - run: pnpm install --frozen-lockfile
+      # npm publish, not pnpm publish: pnpm adds git-state checks the release flow
+      # does not need. prepublishOnly runs the build either way.
+      # No --provenance: GitHub Packages does not accept provenance attestations.
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}

@@ -30,7 +30,7 @@ describe("AzureFileStore", () => {
       getBlockBlobClient: jest.fn(() => mockBlobClient),
     };
 
-    (BlobServiceClient as jest.Mock).mockImplementation(() => ({
+    (BlobServiceClient as unknown as jest.Mock).mockImplementation(() => ({
       getContainerClient: jest.fn(() => mockContainerClient),
     }));
 

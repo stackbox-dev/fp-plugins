@@ -20,7 +20,16 @@ updated lockfile.
 
 - `main` requires one approving review, and `require_last_push_approval` is set — any
   push after an approval dismisses it, so get the branch final before requesting review.
-- Keep coverage at 100%; `pnpm run test:coverage` reports it.
+- Keep coverage at 100% — `jest.config.js` enforces it as a threshold, so a drop
+  fails the build rather than being reported and ignored.
+- `pnpm run lint` must pass; CI runs lint, build and test.
+- Touching S3 or MinIO behaviour? Run the integration suite against real MinIO:
+  ```bash
+  docker run -d --name fp-minio -p 19000:9000 \
+    -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+    minio/minio:latest server /data
+  pnpm run test:integration
+  ```
 - Bugs and follow-ups go in **GitHub issues**, not a tracked file in the repo.
 
 ## Releases

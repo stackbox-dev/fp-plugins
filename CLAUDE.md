@@ -7,12 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Build**: `pnpm run build` — cleans `dist` and compiles TypeScript
 - **Test**: `pnpm test` — runs the Jest suite
 - **Test with coverage**: `pnpm run test:coverage`
+- **Lint**: `pnpm run lint` (`pnpm run lint:fix` to autofix)
+- **Integration test**: `pnpm run test:integration` — needs MinIO, see below
 - **Format code**: `pnpm run pretty` — Prettier over `src/**`
 - **Clean**: `pnpm run clean` — removes `dist`
 - **Transpile**: `pnpm run transpile` — TypeScript compilation only
 
 These are the only scripts defined in `package.json`. CI (`.github/workflows/`) runs
-`pnpm install --frozen-lockfile` + `pnpm test` on Node 24; the package declares
+`pnpm install --frozen-lockfile`, then lint, build and test on Node 24; the package declares
 `engines: node >=22`.
 
 **pnpm only** — never npm or yarn. `pnpm-lock.yaml` is committed and CI installs
@@ -30,12 +32,13 @@ plugin for Stackbox applications.
 - **File Store Plugin** (`src/file-store.ts`): cloud storage abstraction over AWS S3,
   GCS, Azure Blob Storage, MinIO, and the local filesystem
 - **`src/utils.ts`**: `streamToBuffer`, safe with both buffer- and string-mode streams
-- **`src/types.ts`**: augments `FastifySchema` with `operationId` / `summary` /
-  `description`; imported for its side effect
+- **`src/types.ts`**: augments `FastifySchema` and adds `FastifyInstance.FileStore`.
+  `index.ts` imports it for its side effect — without that import the augmentations
+  never reach consumers, since TypeScript only applies them if the declaring file is
+  pulled into the consumer's compilation.
 
 An event-bus plugin (RabbitMQ / GCP Pub/Sub / Azure Service Bus / NATS JetStream)
-used to live here and was removed in `c001efc`. Ignore references to it in
-`docs/superpowers/plans/` — those are historical planning records, not current design.
+used to live here and was removed in `c001efc`.
 
 ### File Store System
 
@@ -58,8 +61,23 @@ provider: `file-store.local.spec.ts`, `.gcs.`, `.s3.`, `.azure.`, plus the origi
 `file-store.spec.ts` and `integration.spec.ts`. Coverage is 100% on statements,
 branches, functions and lines — keep it there.
 
-Cloud SDKs are mocked with `jest.mock(...)`; only `LocalFileStore` is exercised
-against the real filesystem, using temp dirs. No test performs real network I/O.
+Cloud SDKs are mocked with `jest.mock(...)`; `LocalFileStore` runs against the real
+filesystem in temp dirs.
+
+`file-store.minio.integration.spec.ts` is the one test that speaks a real S3 wire
+protocol. It is skipped unless `MINIO_TEST_ENDPOINT` is set, so the default suite
+needs no Docker:
+
+```bash
+docker run -d --name fp-minio -p 19000:9000 \
+  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+  minio/minio:latest server /data
+pnpm run test:integration
+```
+
+Mocked tests cannot catch a behavioural change in an SDK — the NoSuchKey/NotFound
+mismatch fixed in #9 was invisible to them. Add to the integration spec when touching
+S3 or MinIO behaviour.
 
 ## Build Configuration
 
@@ -87,12 +105,17 @@ the issue thread or the PR that resolves it.
   expand on compile, so coverage gets attributed to imports and comments and reads
   several points low. `jest.config.js` overrides `sourceMap: true` for the transform
   only. Do not remove it or coverage numbers become meaningless.
-- **`diagnostics: false` in `jest.config.js`** suppresses TypeScript errors during
-  test runs, which masks real type gaps — see issue #11.
+- **ts-jest type checking is on.** `diagnostics: false` used to suppress TypeScript
+  errors in tests, which is how the missing `FastifyInstance` augmentation went
+  unnoticed. Only ts-jest config warning 151002 is ignored: the fix it suggests
+  (`isolatedModules: true`) zeroes function coverage for `index.ts`.
+- **`types: ["jest", "node"]`** is set explicitly in the ts-jest tsconfig override.
+  Without it, enabling diagnostics fails every spec with `Cannot find name 'describe'`.
 - **Pre-commit hooks**: Husky + lint-staged run Prettier on staged
   `.js/.ts/.json/.md` files.
-- **`tsconfig.build.json` sets `skipLibCheck: true`** — a workaround retained from
-  when this package depended on `@nats-io/jetstream`.
+- **`tsconfig.build.json` sets `skipLibCheck: true`** — still required. Turning it off
+  fails on `thread-stream@4.2.0` (a pino dependency), whose `.d.ts` references
+  `TransferListItem`, a name its `worker_threads` types do not export.
 - **Releasing**: version bumps happen on `main`, in their own commit named just the
   version (`2.16.0`). Do not put a version bump in a feature PR and do not create
   tags by hand — publishing is triggered by creating a GitHub Release. See

@@ -167,9 +167,7 @@ describe("LocalFileStore", () => {
 
     it("throws File not found when stat yields nothing", async () => {
       const store = await register();
-      jest
-        .spyOn(fs.promises, "stat")
-        .mockResolvedValue(undefined as unknown as fs.Stats);
+      jest.spyOn(fs.promises, "stat").mockResolvedValue(undefined);
       await expect(store.getAsBuffer("ghost.txt")).rejects.toThrow(
         `File not found: ${path.join(tempDir, "ghost.txt")}`,
       );
@@ -186,9 +184,7 @@ describe("LocalFileStore", () => {
 
     it("throws File not found when stat yields nothing", async () => {
       const store = await register();
-      jest
-        .spyOn(fs.promises, "stat")
-        .mockResolvedValue(undefined as unknown as fs.Stats);
+      jest.spyOn(fs.promises, "stat").mockResolvedValue(undefined);
       await expect(store.getAsStream("ghost.txt")).rejects.toThrow(
         `File not found: ${path.join(tempDir, "ghost.txt")}`,
       );
@@ -251,7 +247,6 @@ describe("index barrel", () => {
   });
 
   it("re-exports the plugin", () => {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     expect(require("./index").Plugins.FileStore).toBe(FileStorePlugin);
   });
 

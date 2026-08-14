@@ -12,6 +12,11 @@ module.exports = {
         diagnostics: false,
         isolatedModules: false,
         include: [],
+        // tsconfig.json sets sourceMap:false, which leaves istanbul reporting emitted-JS
+        // line numbers — TS parameter properties expand on compile, so the coverage
+        // report pointed at imports and comments. Overridden here only; the published
+        // build still comes from tsconfig.build.json without source maps.
+        tsconfig: { sourceMap: true },
       },
     ],
   },

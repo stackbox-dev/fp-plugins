@@ -2,15 +2,42 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as stream from "node:stream";
-import * as S3 from "@aws-sdk/client-s3";
-import * as AzureIden from "@azure/identity";
-import { defaultProvider } from "@aws-sdk/credential-provider-node";
-import { Upload } from "@aws-sdk/lib-storage";
-import { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
-import { Storage } from "@google-cloud/storage";
+import type * as S3Mod from "@aws-sdk/client-s3";
+import type * as AzureBlobMod from "@azure/storage-blob";
+import type * as GcsMod from "@google-cloud/storage";
+import type { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
 import { FastifyInstance, FastifyPluginAsync } from "fastify";
 import fp from "fastify-plugin";
 import { streamToBuffer } from "./utils";
+
+// The cloud SDKs are require()d by the provider that needs them rather than imported
+// at module scope. A deployment only ever uses one backend, but loading all three
+// costs ~360ms and ~31MB of heap on every boot (GCS alone is ~123ms / ~13.6MB).
+//
+// Each holder is assigned by its load* function before any class that reads it can be
+// constructed — every FileStore implementation is private to this module and reachable
+// only through the matching Configure* entry point below.
+let S3!: typeof S3Mod;
+let Upload!: typeof import("@aws-sdk/lib-storage").Upload;
+let AzureBlob!: typeof AzureBlobMod;
+let AzureIden!: typeof import("@azure/identity");
+let Gcs!: typeof GcsMod;
+
+// Plain assignment rather than ??=: node memoises require(), so re-assigning on a
+// second call is free and keeps these branchless.
+function loadAWS(): void {
+  S3 = require("@aws-sdk/client-s3");
+  Upload = require("@aws-sdk/lib-storage").Upload;
+}
+
+function loadAzure(): void {
+  AzureBlob = require("@azure/storage-blob");
+  AzureIden = require("@azure/identity");
+}
+
+function loadGCP(): void {
+  Gcs = require("@google-cloud/storage");
+}
 
 export interface FileInfo {
   size: number;
@@ -226,10 +253,10 @@ class AzureFileStore implements FileStore {
 }
 
 class GCPFileStore implements FileStore {
-  private storage: Storage;
+  private storage: GcsMod.Storage;
 
   constructor(private bucket: string) {
-    this.storage = new Storage();
+    this.storage = new Gcs.Storage();
   }
 
   async exists(filepath: string): Promise<boolean> {
@@ -310,7 +337,7 @@ class GCPFileStore implements FileStore {
 
 class S3FileStore implements FileStore {
   constructor(
-    private client: S3.S3Client,
+    private client: S3Mod.S3Client,
     private bucket: string,
   ) {}
 
@@ -452,7 +479,8 @@ async function ConfigureAzure(f: FastifyInstance) {
   if (!process.env.AZURE_STORAGE_CONTAINER) {
     throw new Error("AZURE_STORAGE_CONTAINER is not defined");
   }
-  const accountClient = new BlobServiceClient(
+  loadAzure();
+  const accountClient = new AzureBlob.BlobServiceClient(
     process.env.AZURE_STORAGE_ACCOUNT_URL,
     new AzureIden.DefaultAzureCredential({}),
     {},
@@ -468,13 +496,16 @@ async function ConfigureGCP(f: FastifyInstance) {
   if (!bucket) {
     throw new Error("STORAGE_BUCKET env-var is not defined");
   }
+  loadGCP();
   f.decorate("FileStore", new GCPFileStore(bucket));
 }
 
 async function ConfigureAWS(f: FastifyInstance) {
+  loadAWS();
   const client = new S3.S3Client({
     region: process.env.AWS_S3_REGION ?? "us-east-1",
-    credentialDefaultProvider: defaultProvider,
+    credentialDefaultProvider:
+      require("@aws-sdk/credential-provider-node").defaultProvider,
   });
 
   const bucket = process.env.S3_BUCKET;
@@ -495,6 +526,7 @@ async function ConfigureMinio(f: FastifyInstance) {
   if (!process.env.MINIO_SECRET_ACCESS_KEY) {
     throw new Error("MINIO_SECRET_ACCESS_KEY env-var is not defined");
   }
+  loadAWS();
   const client = new S3.S3Client({
     region: process.env.MINIO_REGION ?? "us-east-1",
     endpoint: process.env.MINIO_ENDPOINT,

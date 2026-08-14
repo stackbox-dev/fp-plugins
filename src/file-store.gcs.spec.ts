@@ -88,6 +88,24 @@ describe("GCPFileStore", () => {
         contentType: "text/plain",
       });
     });
+
+    it("propagates a failed save", async () => {
+      mockFile.save.mockRejectedValueOnce(new Error("quota exceeded"));
+
+      await expect(
+        store.save("test.txt", "text/plain", "content"),
+      ).rejects.toThrow("quota exceeded");
+    });
+
+    it("round-trips a unicode payload unchanged", async () => {
+      mockFile.save.mockResolvedValueOnce(undefined);
+
+      await store.save("u.txt", "text/plain", "héllo→世界");
+
+      expect(mockFile.save).toHaveBeenCalledWith("héllo→世界", {
+        contentType: "text/plain",
+      });
+    });
   });
 
   describe("getAsBuffer", () => {
@@ -113,14 +131,34 @@ describe("GCPFileStore", () => {
         destination: "dest.txt",
       });
     });
+
+    it("propagates a failed upload", async () => {
+      mockBucket.upload.mockRejectedValueOnce(new Error("upload failed"));
+
+      await expect(
+        store.copyFromLocalFile("dest.txt", "text/plain", "/tmp/src.txt"),
+      ).rejects.toThrow("upload failed");
+    });
   });
 
   describe("getAsStream", () => {
     it("should return the read stream", async () => {
       const rs = Readable.from(["data"]);
+      mockFile.exists.mockResolvedValueOnce([true]);
       mockFile.createReadStream.mockReturnValueOnce(rs);
 
       expect(await store.getAsStream("test.txt")).toBe(rs);
+    });
+
+    // createReadStream does no I/O, so without an existence check a missing object
+    // resolves and fails later as a stream 'error'. Every other provider rejects.
+    it("rejects for a missing object instead of returning a doomed stream", async () => {
+      mockFile.exists.mockResolvedValueOnce([false]);
+
+      await expect(store.getAsStream("missing.txt")).rejects.toThrow(
+        "File not found: missing.txt",
+      );
+      expect(mockFile.createReadStream).not.toHaveBeenCalled();
     });
   });
 
@@ -146,6 +184,19 @@ describe("GCPFileStore", () => {
         contentType: "text/plain",
       });
       expect(Buffer.concat(chunks).toString()).toBe("piped content");
+    });
+
+    it("propagates a write-stream failure", async () => {
+      const ws = new Writable({
+        write(_chunk, _enc, cb) {
+          cb(new Error("disk full"));
+        },
+      });
+      mockFile.createWriteStream.mockReturnValueOnce(ws);
+
+      await expect(
+        store.copyFromStream("test.txt", "text/plain", Readable.from(["x"])),
+      ).rejects.toThrow("disk full");
     });
   });
 

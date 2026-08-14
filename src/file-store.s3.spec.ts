@@ -208,6 +208,16 @@ describe("S3FileStore", () => {
         });
         expect(mockSend).toHaveBeenCalledWith(expect.any(S3.PutObjectCommand));
       });
+
+      // Without this, deleting the await or attaching .catch(() => undefined) leaves
+      // the suite green while every write silently fails.
+      it("propagates a failed PutObject", async () => {
+        mockSend.mockRejectedValueOnce(new Error("AccessDenied"));
+
+        await expect(
+          store.save("a/b.txt", "text/plain", "content"),
+        ).rejects.toThrow("AccessDenied");
+      });
     });
 
     describe("getAsBuffer", () => {
@@ -264,6 +274,14 @@ describe("S3FileStore", () => {
 
         params.params.Body.destroy();
       });
+
+      it("propagates a failed upload", async () => {
+        mockDone.mockRejectedValueOnce(new Error("upload aborted"));
+
+        await expect(
+          store.copyFromLocalFile("a/b.ts", "text/plain", __filename),
+        ).rejects.toThrow("upload aborted");
+      });
     });
 
     describe("copyFromStream", () => {
@@ -282,6 +300,14 @@ describe("S3FileStore", () => {
           },
         });
         expect(mockDone).toHaveBeenCalled();
+      });
+
+      it("propagates a failed upload", async () => {
+        mockDone.mockRejectedValueOnce(new Error("premature close"));
+
+        await expect(
+          store.copyFromStream("a/b.txt", "text/plain", Readable.from(["x"])),
+        ).rejects.toThrow("premature close");
       });
     });
 

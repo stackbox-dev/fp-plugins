@@ -75,6 +75,19 @@ describe("LocalFileStore", () => {
         fastify.register(FileStorePlugin, { type: "nope" as any }),
       ).rejects.toThrow("Unknown storage type: nope");
     });
+
+    // A plain lookup finds Object.prototype.toString and registers with no FileStore
+    // decorated — a typo becoming a silent no-op boot instead of a failure.
+    it.each(["toString", "constructor", "valueOf", "hasOwnProperty"])(
+      "rejects the inherited Object.prototype name %s",
+      async (type) => {
+        const f = Fastify({ logger: false });
+        await expect(
+          f.register(FileStorePlugin, { type: type as never }),
+        ).rejects.toThrow(`Unknown storage type: ${type}`);
+        await f.close();
+      },
+    );
   });
 
   describe("exists", () => {
@@ -165,12 +178,11 @@ describe("LocalFileStore", () => {
       expect((await store.getAsBuffer("read.txt")).toString()).toBe("buffered");
     });
 
-    it("throws File not found when stat yields nothing", async () => {
+    it("rejects with ENOENT for a missing file", async () => {
       const store = await register();
-      jest.spyOn(fs.promises, "stat").mockResolvedValue(undefined);
-      await expect(store.getAsBuffer("ghost.txt")).rejects.toThrow(
-        `File not found: ${path.join(tempDir, "ghost.txt")}`,
-      );
+      await expect(store.getAsBuffer("ghost.txt")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     });
   });
 
@@ -182,12 +194,12 @@ describe("LocalFileStore", () => {
       expect((await streamToBuffer(rs)).toString()).toBe("streamed");
     });
 
-    it("throws File not found when stat yields nothing", async () => {
+    // Rejects rather than deferring to a stream 'error': createReadStream is lazy.
+    it("rejects with ENOENT for a missing file", async () => {
       const store = await register();
-      jest.spyOn(fs.promises, "stat").mockResolvedValue(undefined);
-      await expect(store.getAsStream("ghost.txt")).rejects.toThrow(
-        `File not found: ${path.join(tempDir, "ghost.txt")}`,
-      );
+      await expect(store.getAsStream("ghost.txt")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     });
   });
 
@@ -214,6 +226,19 @@ describe("LocalFileStore", () => {
       expect(
         await fs.promises.readFile(path.join(tempDir, "x/y/z.txt"), "utf8"),
       ).toBe("piped");
+    });
+
+    it("propagates a source stream error", async () => {
+      const store = await register();
+      const bad = new Readable({
+        read() {
+          this.destroy(new Error("source failed"));
+        },
+      });
+
+      await expect(
+        store.copyFromStream("bad.txt", "text/plain", bad),
+      ).rejects.toThrow("source failed");
     });
   });
 });

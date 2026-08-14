@@ -79,7 +79,11 @@ const Configure = {
 const plugin: FastifyPluginAsync<{
   type: keyof typeof Configure;
 }> = async function (f, opts): Promise<void> {
-  const configure = Configure[opts.type];
+  // hasOwn, not a plain lookup: `Configure["toString"]` finds Object.prototype.toString
+  // and registers with no FileStore decorated, turning a typo into a silent no-op boot.
+  const configure = Object.prototype.hasOwnProperty.call(Configure, opts.type)
+    ? Configure[opts.type]
+    : undefined;
   if (!configure) {
     throw new Error(`Unknown storage type: ${opts.type}`);
   }
@@ -127,11 +131,10 @@ class LocalFileStore implements FileStore {
     await fs.promises.writeFile(p, data);
   }
   async getAsBuffer(filepath: string): Promise<Buffer> {
-    const p = path.join(this.dir, filepath);
-    if (await fs.promises.stat(p)) {
-      return fs.promises.readFile(p);
-    }
-    throw new Error(`File not found: ${p}`);
+    // No stat guard: a fulfilled stat is never falsy, so the old "File not found"
+    // branch was unreachable and readFile already rejects with ENOENT. Dropping it
+    // also removes a redundant stat and the TOCTOU window between the two calls.
+    return fs.promises.readFile(path.join(this.dir, filepath));
   }
   async copyFromLocalFile(
     filepath: string,
@@ -145,10 +148,10 @@ class LocalFileStore implements FileStore {
   }
   async getAsStream(filepath: string): Promise<NodeJS.ReadableStream> {
     const p = path.join(this.dir, filepath);
-    if (await fs.promises.stat(p)) {
-      return fs.createReadStream(p);
-    }
-    throw new Error(`File not found: ${p}`);
+    // stat first so a missing file rejects the promise rather than surfacing later as
+    // a stream 'error' — createReadStream is lazy, like the GCS reader.
+    await fs.promises.stat(p);
+    return fs.createReadStream(p);
   }
   async copyFromStream(
     filepath: string,
@@ -302,6 +305,14 @@ class GCPFileStore implements FileStore {
 
   async getAsStream(filepath: string): Promise<NodeJS.ReadableStream> {
     const gcsfile = this.storage.bucket(this.bucket).file(filepath);
+    // createReadStream does no I/O before returning, so without this check a missing
+    // object resolves and only fails later as a stream 'error' — which a caller doing
+    // `reply.send(await getAsStream(k))` turns into a 200 with a broken body, or an
+    // unhandled 'error' that takes the process down. Every other provider rejects.
+    const [exists] = await gcsfile.exists();
+    if (!exists) {
+      throw new Error(`File not found: ${filepath}`);
+    }
     return gcsfile.createReadStream();
   }
 

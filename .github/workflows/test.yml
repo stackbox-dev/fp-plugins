@@ -1,8 +1,10 @@
 name: Run Tests
 
 on:
+  # No branch filter: a stacked PR based on another feature branch must still run
+  # tests. With a filter, such PRs report no checks at all — and a required status
+  # check that never reports counts as pending, blocking the merge forever.
   pull_request:
-    branches: ["main"]
 
 env:
   NODE_VERSION: 24

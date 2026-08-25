@@ -37,7 +37,7 @@
     "@aws-sdk/client-s3": "^3.1045.0",
     "@aws-sdk/credential-provider-node": "^3.972.39",
     "@aws-sdk/lib-storage": "^3.1045.0",
-    "@azure/identity": "^4.13.1",
+    "@azure/identity": "^4.13.2",
     "@azure/storage-blob": "^12.31.0",
     "@google-cloud/storage": "^8.0.0",
     "fastify-plugin": "^6.0.0"
